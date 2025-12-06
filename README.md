@@ -6,43 +6,23 @@ Authentication microservice handling user login, registration, and JWT token man
 
 ---
 
-## Connect to Online Eureka Server
+## Deploy to Render
 
-In `src/main/resources/application.yml`, update the Eureka configuration:
+1. Push `auth-service` folder to GitHub
+2. Create **Web Service** on Render
+3. Set environment variables:
 
-```yaml
-eureka:
-  client:
-    service-url:
-      defaultZone: https://eureka:<password>@eureka-server-cofs.onrender.com/eureka/
-```
-
-Replace `<password>` with your Eureka password.
-
----
-
-## Connect to Online Redis
-
-```yaml
-spring:
-  data:
-    redis:
-      host: <your-redis-host>
-      port: 6379
-      password: <your-redis-password>
-```
-
----
-
-## Environment Variables
-
-| Variable | Description | Example |
-|----------|-------------|---------|
-| `EUREKA_USERNAME` | Eureka auth username | `eureka` |
-| `EUREKA_PASSWORD` | Eureka auth password | `your-password` |
-| `REDIS_HOST` | Redis server host | `redis-12345.c1.us-east-1-2.ec2.cloud.redislabs.com` |
-| `REDIS_PASSWORD` | Redis password | `your-redis-password` |
-| `JWT_SECRET` | Secret for signing tokens | `your-256-bit-secret` |
+| Key | Value |
+|-----|-------|
+| `PORT` | `8081` |
+| `EUREKA_URL` | `https://eureka:password@eureka-server-cofs.onrender.com/eureka/` |
+| `REDIS_HOST` | `your-redis-host` |
+| `REDIS_PORT` | `6379` |
+| `REDIS_PASSWORD` | `your-redis-password` |
+| `JWT_SECRET` | `your-256-bit-secret` |
+| `MONGODB_URI` | `mongodb+srv://user:pass@cluster.mongodb.net/dbname` |
+| `INTERNAL_API_KEY` | `your-internal-api-key` |
+| `SPRING_PROFILES_ACTIVE` | `prod` |
 
 ---
 
@@ -51,6 +31,11 @@ spring:
 ```bash
 cd auth-service
 mvn spring-boot:run
+```
+
+To connect to online Eureka:
+```bash
+EUREKA_URL=https://eureka:password@eureka-server-cofs.onrender.com/eureka/ mvn spring-boot:run
 ```
 
 ---
