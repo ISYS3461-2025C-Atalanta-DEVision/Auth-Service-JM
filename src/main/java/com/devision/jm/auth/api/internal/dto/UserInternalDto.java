@@ -9,7 +9,6 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
-import java.util.UUID;
 
 /**
  * User Internal DTO
@@ -25,7 +24,7 @@ import java.util.UUID;
 @AllArgsConstructor
 public class UserInternalDto {
 
-    private UUID id;
+    private String id;
     private String email;
     private String passwordHash;
     private Role role;

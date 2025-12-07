@@ -1,10 +1,8 @@
 package com.devision.jm.auth.api.internal.interfaces;
 
 import com.devision.jm.auth.api.internal.dto.TokenInternalDto;
-import com.devision.jm.auth.api.internal.dto.UserInternalDto;
 
 import java.util.Optional;
-import java.util.UUID;
 
 /**
  * Token Service Interface (Internal)
@@ -17,14 +15,14 @@ public interface TokenService {
     /**
      * Generate access and refresh tokens for user
      *
-     * @param userId User ID
+     * @param userId User ID (MongoDB ObjectId as String)
      * @param email User email
      * @param role User role
      * @param ipAddress Client IP
      * @param deviceInfo Device information
      * @return Token details
      */
-    TokenInternalDto generateTokens(UUID userId, String email, String role, String ipAddress, String deviceInfo);
+    TokenInternalDto generateTokens(String userId, String email, String role, String ipAddress, String deviceInfo);
 
     /**
      * Validate access token
@@ -38,9 +36,9 @@ public interface TokenService {
      * Extract user ID from token
      *
      * @param token Access token
-     * @return User ID
+     * @return User ID as String
      */
-    Optional<UUID> extractUserId(String token);
+    Optional<String> extractUserId(String token);
 
     /**
      * Extract user email from token
@@ -83,9 +81,9 @@ public interface TokenService {
     /**
      * Revoke all tokens for user
      *
-     * @param userId User ID
+     * @param userId User ID (MongoDB ObjectId as String)
      */
-    void revokeAllUserTokens(UUID userId);
+    void revokeAllUserTokens(String userId);
 
     /**
      * Check if access token is revoked

@@ -127,16 +127,16 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     }
 
     /**
-     * Check if token is revoked in Redis (Ultimo 2.3.2)
+     * Check if token is revoked in Redis (2.3.2)
      */
     private boolean isTokenRevoked(String token) {
         try {
             String key = REVOKED_TOKEN_PREFIX + token;
             return Boolean.TRUE.equals(redisTemplate.hasKey(key));
         } catch (Exception e) {
-            // If Redis is unavailable, allow the request (fail open)
-            log.error("Redis unavailable for token revocation check: {}", e.getMessage());
-            return false;
+            // Fail-closed for security (2.3.2) - treat as revoked if Redis is unavailable
+            log.error("Redis unavailable for token revocation check, failing closed: {}", e.getMessage());
+            return true;
         }
     }
 }

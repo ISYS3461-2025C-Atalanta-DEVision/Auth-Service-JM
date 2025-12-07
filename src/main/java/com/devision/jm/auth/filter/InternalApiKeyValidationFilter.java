@@ -1,5 +1,6 @@
 package com.devision.jm.auth.filter;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -13,6 +14,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Internal API Key Validation Filter
@@ -29,6 +31,8 @@ import java.util.List;
 public class InternalApiKeyValidationFilter extends OncePerRequestFilter {
 
     public static final String INTERNAL_API_KEY_HEADER = "X-Internal-Api-Key";
+
+    private static final ObjectMapper objectMapper = new ObjectMapper();
 
     // Endpoints that can be accessed without internal API key (for health checks, etc.)
     private static final List<String> ALLOWED_WITHOUT_KEY = List.of(
@@ -90,7 +94,11 @@ public class InternalApiKeyValidationFilter extends OncePerRequestFilter {
     private void sendForbiddenResponse(HttpServletResponse response, String message) throws IOException {
         response.setStatus(HttpStatus.FORBIDDEN.value());
         response.setContentType("application/json");
-        response.getWriter().write(String.format(
-                "{\"success\":false,\"message\":\"%s\",\"errorCode\":\"FORBIDDEN\"}", message));
+        Map<String, Object> errorResponse = Map.of(
+                "success", false,
+                "message", message,
+                "errorCode", "FORBIDDEN"
+        );
+        response.getWriter().write(objectMapper.writeValueAsString(errorResponse));
     }
 }

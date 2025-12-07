@@ -7,7 +7,6 @@ import lombok.NoArgsConstructor;
 
 import java.time.Instant;
 import java.util.Map;
-import java.util.UUID;
 
 /**
  * Base Event class for Kafka messages
@@ -62,9 +61,9 @@ public class AuthEvent {
     private EventType eventType;
 
     /**
-     * User ID associated with this event (UUID type to match User entity)
+     * User ID associated with this event (String type for MongoDB ObjectId)
      */
-    private UUID userId;
+    private String userId;
 
     /**
      * User email (for notification purposes)

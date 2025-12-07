@@ -16,10 +16,10 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.Date;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
@@ -48,8 +48,7 @@ public class TokenServiceImpl implements TokenService {
     private final RedisTemplate<String, String> redisTemplate;
 
     @Override
-    @Transactional
-    public TokenInternalDto generateTokens(UUID userId, String email, String role,
+    public TokenInternalDto generateTokens(String userId, String email, String role,
                                            String ipAddress, String deviceInfo) {
         LocalDateTime now = LocalDateTime.now();
 
@@ -57,7 +56,7 @@ public class TokenServiceImpl implements TokenService {
         Date accessTokenExpiry = new Date(System.currentTimeMillis() + jwtConfig.getAccessTokenExpiration());
         String accessToken = Jwts.builder()
                 .subject(email)
-                .claim("userId", userId.toString())
+                .claim("userId", userId)
                 .claim("email", email)
                 .claim("role", role)
                 .issuer(jwtConfig.getIssuer())
@@ -78,6 +77,7 @@ public class TokenServiceImpl implements TokenService {
         RefreshToken refreshToken = RefreshToken.builder()
                 .token(refreshTokenValue)
                 .user(user)
+                .userId(userId)
                 .expiresAt(refreshTokenExpiry)
                 .ipAddress(ipAddress)
                 .deviceInfo(deviceInfo)
@@ -117,11 +117,10 @@ public class TokenServiceImpl implements TokenService {
     }
 
     @Override
-    public Optional<UUID> extractUserId(String token) {
+    public Optional<String> extractUserId(String token) {
         try {
             Claims claims = extractClaims(token);
-            String userIdStr = claims.get("userId", String.class);
-            return Optional.of(UUID.fromString(userIdStr));
+            return Optional.ofNullable(claims.get("userId", String.class));
         } catch (Exception e) {
             return Optional.empty();
         }
@@ -148,7 +147,6 @@ public class TokenServiceImpl implements TokenService {
     }
 
     @Override
-    @Transactional
     public Optional<TokenInternalDto> refreshTokens(String refreshTokenValue) {
         // Find refresh token in database
         RefreshToken refreshToken = refreshTokenRepository.findByToken(refreshTokenValue)
@@ -210,16 +208,21 @@ public class TokenServiceImpl implements TokenService {
     }
 
     @Override
-    @Transactional
     public void revokeRefreshToken(String refreshToken) {
-        refreshTokenRepository.revokeByToken(refreshToken, LocalDateTime.now());
+        refreshTokenRepository.findByToken(refreshToken).ifPresent(token -> {
+            token.revoke();
+            refreshTokenRepository.save(token);
+        });
         log.debug("Refresh token revoked");
     }
 
     @Override
-    @Transactional
-    public void revokeAllUserTokens(UUID userId) {
-        refreshTokenRepository.revokeAllTokensByUser(userId, LocalDateTime.now());
+    public void revokeAllUserTokens(String userId) {
+        List<RefreshToken> tokens = refreshTokenRepository.findAllByUserId(userId);
+        tokens.forEach(token -> {
+            token.revoke();
+            refreshTokenRepository.save(token);
+        });
         log.debug("All tokens revoked for user: {}", userId);
     }
 
@@ -229,8 +232,9 @@ public class TokenServiceImpl implements TokenService {
             String key = REVOKED_TOKEN_PREFIX + token;
             return Boolean.TRUE.equals(redisTemplate.hasKey(key));
         } catch (Exception e) {
-            log.error("Failed to check token revocation: {}", e.getMessage());
-            return false;  // Fail open if Redis is unavailable
+            // Fail-closed for security (2.3.2) - treat as revoked if Redis is unavailable
+            log.error("Redis unavailable for token revocation check, failing closed: {}", e.getMessage());
+            return true;
         }
     }
 

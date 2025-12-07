@@ -1,23 +1,21 @@
 package com.devision.jm.auth.model.entity;
 
-import jakarta.persistence.*;
 import lombok.*;
 import lombok.experimental.SuperBuilder;
+import org.springframework.data.mongodb.core.index.Indexed;
+import org.springframework.data.mongodb.core.mapping.DBRef;
+import org.springframework.data.mongodb.core.mapping.Document;
+import org.springframework.data.mongodb.core.mapping.Field;
 
 import java.time.LocalDateTime;
-import java.util.UUID;
 
 /**
- * Refresh Token Entity
+ * Refresh Token Document (MongoDB)
  *
- * Stores refresh tokens for the token refresh mechanism (Ultimo 2.3.3).
+ * Stores refresh tokens for the token refresh mechanism (2.3.3).
  * Enables long-lived sessions without compromising access token security.
  */
-@Entity
-@Table(name = "refresh_tokens", indexes = {
-        @Index(name = "idx_refresh_token", columnList = "token", unique = true),
-        @Index(name = "idx_refresh_token_user", columnList = "user_id")
-})
+@Document(collection = "refresh_tokens")
 @Getter
 @Setter
 @NoArgsConstructor
@@ -25,30 +23,35 @@ import java.util.UUID;
 @SuperBuilder
 public class RefreshToken extends BaseEntity {
 
-    @Column(name = "token", nullable = false, unique = true)
+    @Indexed(unique = true)
+    @Field("token")
     private String token;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "user_id", nullable = false)
+    @DBRef
+    @Field("user")
     private User user;
 
-    @Column(name = "expires_at", nullable = false)
+    @Field("user_id")
+    @Indexed
+    private String userId;  // Denormalized for efficient queries
+
+    @Field("expires_at")
     private LocalDateTime expiresAt;
 
     @Builder.Default
-    @Column(name = "revoked")
+    @Field("revoked")
     private boolean revoked = false;
 
-    @Column(name = "revoked_at")
+    @Field("revoked_at")
     private LocalDateTime revokedAt;
 
-    @Column(name = "replaced_by_token")
+    @Field("replaced_by_token")
     private String replacedByToken;  // For token rotation
 
-    @Column(name = "device_info")
+    @Field("device_info")
     private String deviceInfo;  // Optional: store device/browser info
 
-    @Column(name = "ip_address")
+    @Field("ip_address")
     private String ipAddress;
 
     /**

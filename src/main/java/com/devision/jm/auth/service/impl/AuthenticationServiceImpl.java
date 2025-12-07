@@ -307,9 +307,15 @@ public class AuthenticationServiceImpl implements AuthenticationApi {
                     org.springframework.http.HttpStatus.BAD_REQUEST, "PASSWORD_MISMATCH");
         }
 
-        User user = userRepository.findById(UUID.fromString(userId))
+        User user = userRepository.findById(userId)
                 .orElseThrow(() -> new AuthException("User not found",
                         org.springframework.http.HttpStatus.NOT_FOUND, "USER_NOT_FOUND"));
+
+        // SSO users cannot change password (1.3.2 - SSO users cannot use password for system access)
+        if (user.isSsoUser()) {
+            throw new AuthException("SSO users cannot change password. Please use your SSO provider.",
+                    org.springframework.http.HttpStatus.BAD_REQUEST, "SSO_PASSWORD_CHANGE_NOT_ALLOWED");
+        }
 
         // Verify current password
         if (!passwordEncoder.matches(request.getCurrentPassword(), user.getPasswordHash())) {

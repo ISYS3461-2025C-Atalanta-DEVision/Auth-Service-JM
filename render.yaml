@@ -1,0 +1,62 @@
+# Render Blueprint for Auth Service
+# Deploy with: render blueprint sync
+
+services:
+  - type: web
+    name: auth-service
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    region: singapore  # Change based on your preference
+    plan: free  # Options: free, starter, standard, pro
+    healthCheckPath: /actuator/health
+    envVars:
+      # Spring Profile
+      - key: SPRING_PROFILES_ACTIVE
+        value: prod
+
+      # MongoDB Atlas Connection (set in Render dashboard)
+      - key: MONGODB_URI
+        sync: false  # Must be set manually in dashboard
+
+      # Redis (use Render Redis or external like Upstash)
+      - key: REDIS_HOST
+        sync: false
+      - key: REDIS_PORT
+        value: "6379"
+      - key: REDIS_PASSWORD
+        sync: false
+
+      # Eureka Server URL (if deployed on Render)
+      - key: EUREKA_URL
+        sync: false
+      - key: EUREKA_ENABLED
+        value: "true"
+
+      # Google OAuth2 Credentials (set in Render dashboard)
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+
+      # JWT Secret (generate a strong secret)
+      - key: JWT_SECRET
+        generateValue: true
+
+      # Internal API Key for service-to-service communication
+      - key: INTERNAL_API_KEY
+        generateValue: true
+      - key: INTERNAL_API_KEY_VALIDATION
+        value: "true"
+
+      # Frontend URL for OAuth2 redirects
+      - key: FRONTEND_URL
+        sync: false
+
+      # Additional CORS origins (comma-separated)
+      - key: APP_ALLOWED_ORIGINS
+        sync: false
+
+      # Kafka (if using Confluent Cloud or similar)
+      - key: KAFKA_BOOTSTRAP_SERVERS
+        sync: false

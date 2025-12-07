@@ -6,7 +6,6 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
-import java.util.UUID;
 
 /**
  * Token Internal DTO
@@ -24,7 +23,7 @@ public class TokenInternalDto {
     private String refreshToken;
     private LocalDateTime accessTokenExpiry;
     private LocalDateTime refreshTokenExpiry;
-    private UUID userId;
+    private String userId;
     private String userEmail;
     private String role;
 }

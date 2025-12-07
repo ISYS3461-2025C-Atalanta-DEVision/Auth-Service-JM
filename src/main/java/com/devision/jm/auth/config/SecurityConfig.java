@@ -2,6 +2,7 @@ package com.devision.jm.auth.config;
 
 import com.devision.jm.auth.filter.InternalApiKeyValidationFilter;
 import com.devision.jm.auth.filter.JwtAuthenticationFilter;
+import com.devision.jm.auth.service.impl.OAuth2AuthenticationService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -32,6 +33,8 @@ public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
     private final InternalApiKeyValidationFilter internalApiKeyValidationFilter;
+    private final OAuth2AuthenticationService oauth2AuthenticationService;
+    private final OAuth2SuccessHandler oauth2SuccessHandler;
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
@@ -63,8 +66,9 @@ public class SecurityConfig {
                                 "/api/v1/auth/validate",
                                 "/api/v1/auth/countries",
                                 "/api/v1/auth/admin/login",
-                                // H2 Console (development only)
-                                "/h2-console/**",
+                                // OAuth2 endpoints (1.3.1, 2.3.1)
+                                "/oauth2/**",
+                                "/login/oauth2/**",
                                 // Actuator endpoints
                                 "/actuator/**",
                                 // Swagger/OpenAPI
@@ -81,6 +85,13 @@ public class SecurityConfig {
 
                         // All other endpoints require authentication
                         .anyRequest().authenticated()
+                )
+
+                // OAuth2 Login Configuration (1.3.1, 2.3.1 - Google SSO)
+                .oauth2Login(oauth2 -> oauth2
+                        .userInfoEndpoint(userInfo -> userInfo
+                                .userService(oauth2AuthenticationService))
+                        .successHandler(oauth2SuccessHandler)
                 )
 
                 // Add Internal API Key filter first (validates requests from Gateway)

@@ -1,45 +1,40 @@
 package com.devision.jm.auth.model.entity;
 
-import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import lombok.experimental.SuperBuilder;
-import org.hibernate.annotations.CreationTimestamp;
-import org.hibernate.annotations.UpdateTimestamp;
+import org.springframework.data.annotation.CreatedDate;
+import org.springframework.data.annotation.Id;
+import org.springframework.data.annotation.LastModifiedDate;
+import org.springframework.data.annotation.Version;
 
 import java.time.LocalDateTime;
-import java.util.UUID;
 
 /**
- * Base Entity with common audit fields
+ * Base Entity with common audit fields for MongoDB
  *
  * Provides:
- * - UUID-based primary key
+ * - String-based primary key (MongoDB ObjectId as String)
  * - Creation timestamp
  * - Update timestamp
+ * - Version for optimistic locking
  */
 @Getter
 @Setter
 @SuperBuilder
 @NoArgsConstructor
-@MappedSuperclass
 public abstract class BaseEntity {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
-    @Column(name = "id", updatable = false, nullable = false)
-    private UUID id;
+    private String id;
 
-    @CreationTimestamp
-    @Column(name = "created_at", nullable = false, updatable = false)
+    @CreatedDate
     private LocalDateTime createdAt;
 
-    @UpdateTimestamp
-    @Column(name = "updated_at", nullable = false)
+    @LastModifiedDate
     private LocalDateTime updatedAt;
 
     @Version
-    @Column(name = "version")
     private Long version;
 }
