@@ -119,22 +119,16 @@ spring:
     console:
       enabled: false
 
-  # Use environment variables for database
-  datasource:
-    url: ${DATABASE_URL}
-    username: ${DATABASE_USERNAME}
-    password: ${DATABASE_PASSWORD}
-    driver-class-name: org.postgresql.Driver
+  # Disable JPA/H2 in production (using MongoDB)
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration
+      - org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration
 
-  jpa:
-    hibernate:
-      ddl-auto: validate
-    show-sql: false
-    properties:
-      hibernate:
-        dialect: org.hibernate.dialect.PostgreSQLDialect
-
+  # MongoDB for production
   data:
+    mongodb:
+      uri: ${MONGODB_URI}
     redis:
       host: ${REDIS_HOST:redis}
       port: ${REDIS_PORT:6379}
@@ -146,7 +140,7 @@ spring:
 eureka:
   client:
     service-url:
-      defaultZone: http://${EUREKA_USERNAME:eureka}:${EUREKA_PASSWORD}@${EUREKA_HOST:eureka-server}:8761/eureka/
+      defaultZone: ${EUREKA_URL}
 
 # Enable internal API key validation in production
 internal:
