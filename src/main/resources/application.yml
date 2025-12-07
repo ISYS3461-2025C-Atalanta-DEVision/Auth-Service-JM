@@ -5,11 +5,12 @@ spring:
   application:
     name: auth-service
 
-  # Disable JPA/H2 (using MongoDB)
+  # Disable JPA/H2 and Kafka (using MongoDB, Kafka disabled for now)
   autoconfigure:
     exclude:
       - org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration
       - org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration
+      - org.springframework.boot.autoconfigure.kafka.KafkaAutoConfiguration
 
   # MongoDB Configuration
   data:
@@ -159,6 +160,14 @@ eureka:
     hostname: ${RENDER_EXTERNAL_HOSTNAME:localhost}
     prefer-ip-address: false
     non-secure-port: ${PORT:8081}
+    instance-id: ${spring.application.name}:${RENDER_SERVICE_ID:${random.uuid}}
+    # For Render: register with external URL so Gateway can route to it
+    home-page-url: https://${RENDER_EXTERNAL_HOSTNAME:localhost}/
+    status-page-url: https://${RENDER_EXTERNAL_HOSTNAME:localhost}/actuator/info
+    health-check-url: https://${RENDER_EXTERNAL_HOSTNAME:localhost}/actuator/health
+    secure-port-enabled: true
+    non-secure-port-enabled: false
+    secure-port: 443
 
 # Enable internal API key validation in production
 internal:

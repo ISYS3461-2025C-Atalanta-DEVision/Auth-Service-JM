@@ -74,11 +74,11 @@
             <artifactId>spring-boot-starter-data-redis</artifactId>
         </dependency>
 
-        <!-- Kafka for inter-service communication -->
-        <dependency>
+        <!-- Kafka disabled for now - uncomment when needed -->
+        <!-- <dependency>
             <groupId>org.springframework.kafka</groupId>
             <artifactId>spring-kafka</artifactId>
-        </dependency>
+        </dependency> -->
 
         <!-- Eureka Client -->
         <dependency>
