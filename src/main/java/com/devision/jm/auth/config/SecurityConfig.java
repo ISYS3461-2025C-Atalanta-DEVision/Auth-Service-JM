@@ -57,31 +57,24 @@ public class SecurityConfig {
                         // Public endpoints
                         .requestMatchers(
                                 "/",
-                                "/api/v1/auth/register",
-                                "/api/v1/auth/login",
-                                "/api/v1/auth/refresh",
-                                "/api/v1/auth/activate/**",
-                                "/api/v1/auth/forgot-password",
-                                "/api/v1/auth/reset-password/**",
-                                "/api/v1/auth/validate",
-                                "/api/v1/auth/countries",
-                                "/api/v1/auth/admin/login",
-                                // OAuth2 endpoints (1.3.1, 2.3.1)
+                                "/api/auth/register",
+                                "/api/auth/login",
+                                "/api/auth/refresh",
+                                "/api/auth/activate/**",
+                                "/api/auth/forgot-password",
+                                "/api/auth/reset-password/**",
+                                "/api/auth/validate",
+                                "/api/auth/countries",
+                                "/api/auth/admin/login",
+                                // OAuth2 endpoints
                                 "/oauth2/**",
                                 "/login/oauth2/**",
                                 // Actuator endpoints
-                                "/actuator/**",
-                                // Swagger/OpenAPI
-                                "/v3/api-docs/**",
-                                "/api-docs/**",
-                                "/swagger-ui/**",
-                                "/swagger-ui.html",
-                                "/swagger-resources/**",
-                                "/webjars/**"
+                                "/actuator/**"
                         ).permitAll()
 
                         // Admin endpoints require ADMIN role
-                        .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
+                        .requestMatchers("/api/admin/**").hasRole("ADMIN")
 
                         // All other endpoints require authentication
                         .anyRequest().authenticated()
