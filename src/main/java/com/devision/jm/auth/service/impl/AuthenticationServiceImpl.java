@@ -309,7 +309,8 @@ public class AuthenticationServiceImpl implements AuthenticationApi {
                 .orElseThrow(() -> new InvalidTokenException("Invalid activation token"));
 
         // Check if token has expired (24 hours validity)
-        if (user.getActivationTokenExpiry().isBefore(LocalDateTime.now())) {
+        if (user.getActivationTokenExpiry() != null &&
+            user.getActivationTokenExpiry().isBefore(LocalDateTime.now())) {
             throw new TokenExpiredException("Activation");
         }
 
