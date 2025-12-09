@@ -302,26 +302,45 @@ public class AuthenticationServiceImpl implements AuthenticationApi {
     @Override
     @Transactional
     public void activateAccount(String token) {
-        log.info("Account activation attempt with token");
+        log.info("Account activation attempt with token: {}", token.substring(0, 8) + "...");
 
         // Find user by activation token
+        log.debug("Looking up user by activation token");
         User user = userRepository.findByActivationToken(token)
-                .orElseThrow(() -> new InvalidTokenException("Invalid activation token"));
+                .orElseThrow(() -> {
+                    log.error("Activation token not found in database");
+                    return new InvalidTokenException("Invalid activation token");
+                });
+        log.info("Found user for activation: {}", user.getEmail());
 
         // Check if token has expired (24 hours validity)
         if (user.getActivationTokenExpiry() != null &&
             user.getActivationTokenExpiry().isBefore(LocalDateTime.now())) {
+            log.error("Activation token expired for user: {}", user.getEmail());
             throw new TokenExpiredException("Activation");
         }
 
         // Activate the account
+        log.debug("Setting account status to ACTIVE for user: {}", user.getEmail());
         user.setStatus(AccountStatus.ACTIVE);
         user.setActivationToken(null);           // Clear token (one-time use)
         user.setActivationTokenExpiry(null);
-        userRepository.save(user);
 
-        // Publish event - triggers welcome email
-        eventPublisher.publishUserActivated(user);
+        try {
+            userRepository.save(user);
+            log.info("Account status updated successfully for: {}", user.getEmail());
+        } catch (Exception e) {
+            log.error("Failed to save user during activation: {}", e.getMessage(), e);
+            throw e;
+        }
+
+        // Publish event - triggers welcome email (async, won't block)
+        try {
+            eventPublisher.publishUserActivated(user);
+        } catch (Exception e) {
+            // Don't fail activation if email fails
+            log.error("Failed to publish activation event for {}: {}", user.getEmail(), e.getMessage());
+        }
 
         log.info("Account activated successfully: {}", user.getEmail());
     }
