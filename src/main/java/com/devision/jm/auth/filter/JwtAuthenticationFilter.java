@@ -1,11 +1,10 @@
 package com.devision.jm.auth.filter;
 
 import com.devision.jm.auth.config.JwtConfig;
-import io.jsonwebtoken.Claims;
-import io.jsonwebtoken.ExpiredJwtException;
-import io.jsonwebtoken.Jwts;
-import io.jsonwebtoken.MalformedJwtException;
-import io.jsonwebtoken.security.SignatureException;
+import com.nimbusds.jose.JOSEException;
+import com.nimbusds.jose.crypto.DirectDecrypter;
+import com.nimbusds.jwt.EncryptedJWT;
+import com.nimbusds.jwt.JWTClaimsSet;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -23,16 +22,18 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+import java.text.ParseException;
+import java.util.Date;
 import java.util.List;
 
 /**
  * JWT Authentication Filter
  *
- * Intercepts requests to validate JWT tokens.
+ * Intercepts requests to validate JWE (encrypted) tokens.
  * Organized separately from tier structure (A.1.3).
  *
  * Implements:
- * - Token validation
+ * - JWE token decryption and validation (2.2.1)
  * - Token revocation check via Redis (2.3.2)
  */
 @Slf4j
@@ -53,51 +54,62 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         try {
             String jwt = extractJwtFromRequest(request);
 
-            if (StringUtils.hasText(jwt) && validateToken(jwt)) {
-                // Check if token is revoked in Redis (2.3.2)
-                if (isTokenRevoked(jwt)) {
-                    log.warn("Attempted use of revoked token");
-                    response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-                    response.getWriter().write("{\"error\": \"Token has been revoked\"}");
-                    return;
+            if (StringUtils.hasText(jwt)) {
+                // Decrypt and validate JWE token (2.2.1)
+                JWTClaimsSet claims = decryptAndValidateToken(jwt);
+
+                if (claims != null) {
+                    // Check if token is revoked in Redis (2.3.2)
+                    if (isTokenRevoked(jwt)) {
+                        log.warn("Attempted use of revoked token");
+                        response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                        response.setContentType("application/json");
+                        response.getWriter().write("{\"error\": \"Token has been revoked\"}");
+                        return;
+                    }
+
+                    // Check if token is expired
+                    if (claims.getExpirationTime() != null && claims.getExpirationTime().before(new Date())) {
+                        log.warn("JWE token has expired");
+                        response.setHeader("X-Token-Expired", "true");
+                        filterChain.doFilter(request, response);
+                        return;
+                    }
+
+                    // Extract claims
+                    String userId = claims.getStringClaim("userId");
+                    String email = claims.getStringClaim("email");
+                    String role = claims.getStringClaim("role");
+
+                    // Create authentication token
+                    UsernamePasswordAuthenticationToken authentication =
+                            new UsernamePasswordAuthenticationToken(
+                                    email,
+                                    null,
+                                    List.of(new SimpleGrantedAuthority("ROLE_" + role))
+                            );
+
+                    authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+
+                    // Set authentication in security context
+                    SecurityContextHolder.getContext().setAuthentication(authentication);
+
+                    // Add user info to request attributes for controllers
+                    request.setAttribute("userId", userId);
+                    request.setAttribute("userEmail", email);
+                    request.setAttribute("userRole", role);
                 }
-
-                // Extract claims and set authentication
-                Claims claims = extractClaims(jwt);
-                String userId = claims.get("userId", String.class);
-                String email = claims.get("email", String.class);
-                String role = claims.get("role", String.class);
-
-                // Create authentication token
-                UsernamePasswordAuthenticationToken authentication =
-                        new UsernamePasswordAuthenticationToken(
-                                email,
-                                null,
-                                List.of(new SimpleGrantedAuthority("ROLE_" + role))
-                        );
-
-                authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
-
-                // Set authentication in security context
-                SecurityContextHolder.getContext().setAuthentication(authentication);
-
-                // Add user info to request attributes for controllers
-                request.setAttribute("userId", userId);
-                request.setAttribute("userEmail", email);
-                request.setAttribute("userRole", role);
             }
-        } catch (ExpiredJwtException e) {
-            log.warn("JWT token has expired: {}", e.getMessage());
-            response.setHeader("X-Token-Expired", "true");
-        } catch (SignatureException | MalformedJwtException e) {
-            log.warn("Invalid JWT token: {}", e.getMessage());
         } catch (Exception e) {
-            log.error("Cannot set user authentication: {}", e.getMessage());
+            log.debug("Cannot set user authentication: {}", e.getMessage());
         }
 
         filterChain.doFilter(request, response);
     }
 
+    /**
+     * Extract JWT token from Authorization header
+     */
     private String extractJwtFromRequest(HttpServletRequest request) {
         String bearerToken = request.getHeader(HttpHeaders.AUTHORIZATION);
         if (StringUtils.hasText(bearerToken) && bearerToken.startsWith(BEARER_PREFIX)) {
@@ -106,24 +118,29 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         return null;
     }
 
-    private boolean validateToken(String token) {
+    /**
+     * Decrypt and validate JWE token (2.2.1)
+     * Returns claims if valid, null if invalid
+     */
+    private JWTClaimsSet decryptAndValidateToken(String token) {
         try {
-            Jwts.parser()
-                    .verifyWith(jwtConfig.getSigningKey())
-                    .build()
-                    .parseSignedClaims(token);
-            return true;
-        } catch (Exception e) {
-            return false;
-        }
-    }
+            // Parse the JWE token
+            EncryptedJWT encryptedJWT = EncryptedJWT.parse(token);
 
-    private Claims extractClaims(String token) {
-        return Jwts.parser()
-                .verifyWith(jwtConfig.getSigningKey())
-                .build()
-                .parseSignedClaims(token)
-                .getPayload();
+            // Decrypt with AES-256 key
+            DirectDecrypter decrypter = new DirectDecrypter(jwtConfig.getEncryptionKey());
+            encryptedJWT.decrypt(decrypter);
+
+            // Return decrypted claims
+            return encryptedJWT.getJWTClaimsSet();
+
+        } catch (ParseException e) {
+            log.debug("Invalid JWE token format: {}", e.getMessage());
+            return null;
+        } catch (JOSEException e) {
+            log.debug("Failed to decrypt JWE token: {}", e.getMessage());
+            return null;
+        }
     }
 
     /**
@@ -134,9 +151,10 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             String key = REVOKED_TOKEN_PREFIX + token;
             return Boolean.TRUE.equals(redisTemplate.hasKey(key));
         } catch (Exception e) {
-            // Fail-closed for security (2.3.2) - treat as revoked if Redis is unavailable
-            log.error("Redis unavailable for token revocation check, failing closed: {}", e.getMessage());
-            return true;
+            // Fail-open for availability (allow request to proceed)
+            // Log error but don't block the request
+            log.error("Redis unavailable for token revocation check: {}", e.getMessage());
+            return false;
         }
     }
 }

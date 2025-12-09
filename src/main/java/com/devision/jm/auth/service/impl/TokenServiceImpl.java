@@ -9,14 +9,17 @@ import com.devision.jm.auth.model.entity.RefreshToken;
 import com.devision.jm.auth.model.entity.User;
 import com.devision.jm.auth.repository.RefreshTokenRepository;
 import com.devision.jm.auth.repository.UserRepository;
-import io.jsonwebtoken.Claims;
-import io.jsonwebtoken.ExpiredJwtException;
-import io.jsonwebtoken.Jwts;
+import com.nimbusds.jose.*;
+import com.nimbusds.jose.crypto.DirectDecrypter;
+import com.nimbusds.jose.crypto.DirectEncrypter;
+import com.nimbusds.jwt.EncryptedJWT;
+import com.nimbusds.jwt.JWTClaimsSet;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 
+import java.text.ParseException;
 import java.time.LocalDateTime;
 import java.util.Date;
 import java.util.List;
@@ -27,13 +30,16 @@ import java.util.concurrent.TimeUnit;
 /**
  * Token Service Implementation
  *
- * Handles JWT token generation, validation, and revocation.
+ * Handles JWE (JSON Web Encryption) token generation, validation, and revocation.
  *
  * Implements:
- * - JWS token generation (2.1.2)
+ * - JWE token generation with encrypted payload (2.2.1)
  * - Token refresh mechanism (2.3.3)
  * - Token revocation via Redis (2.3.2)
  * - Token invalidation on logout (2.2.3)
+ *
+ * JWE ensures the token payload is encrypted and cannot be read by unauthorized parties.
+ * Uses A256GCM (AES-256-GCM) for content encryption and dir (direct) key agreement.
  */
 @Slf4j
 @Service
@@ -47,25 +53,20 @@ public class TokenServiceImpl implements TokenService {
     private final UserRepository userRepository;
     private final RedisTemplate<String, String> redisTemplate;
 
+    /**
+     * Generate JWE access token and refresh token (2.2.1)
+     * The access token payload is encrypted and cannot be read by unauthorized parties.
+     */
     @Override
     public TokenInternalDto generateTokens(String userId, String email, String role,
                                            String ipAddress, String deviceInfo) {
         LocalDateTime now = LocalDateTime.now();
 
-        // Generate access token
+        // Generate encrypted JWE access token (2.2.1)
         Date accessTokenExpiry = new Date(System.currentTimeMillis() + jwtConfig.getAccessTokenExpiration());
-        String accessToken = Jwts.builder()
-                .subject(email)
-                .claim("userId", userId)
-                .claim("email", email)
-                .claim("role", role)
-                .issuer(jwtConfig.getIssuer())
-                .issuedAt(new Date())
-                .expiration(accessTokenExpiry)
-                .signWith(jwtConfig.getSigningKey())
-                .compact();
+        String accessToken = generateJweToken(userId, email, role, accessTokenExpiry);
 
-        // Generate refresh token
+        // Generate refresh token (random UUID, stored in database)
         String refreshTokenValue = UUID.randomUUID().toString();
         LocalDateTime refreshTokenExpiry = now.plusSeconds(jwtConfig.getRefreshTokenExpirationSeconds());
 
@@ -84,7 +85,7 @@ public class TokenServiceImpl implements TokenService {
                 .build();
         refreshTokenRepository.save(refreshToken);
 
-        log.debug("Generated tokens for user: {}", email);
+        log.debug("Generated JWE tokens for user: {}", email);
 
         return TokenInternalDto.builder()
                 .accessToken(accessToken)
@@ -97,31 +98,91 @@ public class TokenServiceImpl implements TokenService {
                 .build();
     }
 
+    /**
+     * Generate JWE (encrypted) token - Requirement 2.2.1
+     * Uses direct encryption with AES-256-GCM
+     */
+    private String generateJweToken(String userId, String email, String role, Date expiry) {
+        try {
+            // Build JWT claims (payload)
+            JWTClaimsSet claimsSet = new JWTClaimsSet.Builder()
+                    .subject(email)
+                    .claim("userId", userId)
+                    .claim("email", email)
+                    .claim("role", role)
+                    .issuer(jwtConfig.getIssuer())
+                    .issueTime(new Date())
+                    .expirationTime(expiry)
+                    .jwtID(UUID.randomUUID().toString())  // Unique token ID for revocation
+                    .build();
+
+            // Create JWE header with direct encryption using A256GCM
+            JWEHeader header = new JWEHeader.Builder(JWEAlgorithm.DIR, EncryptionMethod.A256GCM)
+                    .contentType("JWT")
+                    .build();
+
+            // Create encrypted JWT
+            EncryptedJWT encryptedJWT = new EncryptedJWT(header, claimsSet);
+
+            // Encrypt with AES-256 key
+            DirectEncrypter encrypter = new DirectEncrypter(jwtConfig.getEncryptionKey());
+            encryptedJWT.encrypt(encrypter);
+
+            // Serialize to compact form
+            return encryptedJWT.serialize();
+
+        } catch (JOSEException e) {
+            log.error("Failed to generate JWE token: {}", e.getMessage());
+            throw new RuntimeException("Failed to generate token", e);
+        }
+    }
+
+    /**
+     * Validate JWE access token (2.2.1)
+     * Decrypts the token and verifies expiration
+     */
     @Override
     public boolean validateAccessToken(String token) {
         try {
-            Jwts.parser()
-                    .verifyWith(jwtConfig.getSigningKey())
-                    .build()
-                    .parseSignedClaims(token);
+            JWTClaimsSet claims = decryptAndValidateToken(token);
 
-            // Also check Redis for revocation
+            // Check if token is expired
+            if (claims.getExpirationTime().before(new Date())) {
+                log.debug("Token expired");
+                return false;
+            }
+
+            // Check Redis for revocation (2.3.2)
             return !isAccessTokenRevoked(token);
-        } catch (ExpiredJwtException e) {
-            log.debug("Token expired: {}", e.getMessage());
-            return false;
+
         } catch (Exception e) {
             log.debug("Token validation failed: {}", e.getMessage());
             return false;
         }
     }
 
+    /**
+     * Decrypt JWE token and extract claims
+     */
+    private JWTClaimsSet decryptAndValidateToken(String token) throws ParseException, JOSEException {
+        // Parse the JWE token
+        EncryptedJWT encryptedJWT = EncryptedJWT.parse(token);
+
+        // Decrypt with AES-256 key
+        DirectDecrypter decrypter = new DirectDecrypter(jwtConfig.getEncryptionKey());
+        encryptedJWT.decrypt(decrypter);
+
+        // Get claims
+        return encryptedJWT.getJWTClaimsSet();
+    }
+
     @Override
     public Optional<String> extractUserId(String token) {
         try {
-            Claims claims = extractClaims(token);
-            return Optional.ofNullable(claims.get("userId", String.class));
+            JWTClaimsSet claims = decryptAndValidateToken(token);
+            return Optional.ofNullable(claims.getStringClaim("userId"));
         } catch (Exception e) {
+            log.debug("Failed to extract userId: {}", e.getMessage());
             return Optional.empty();
         }
     }
@@ -129,9 +190,10 @@ public class TokenServiceImpl implements TokenService {
     @Override
     public Optional<String> extractEmail(String token) {
         try {
-            Claims claims = extractClaims(token);
-            return Optional.ofNullable(claims.get("email", String.class));
+            JWTClaimsSet claims = decryptAndValidateToken(token);
+            return Optional.ofNullable(claims.getStringClaim("email"));
         } catch (Exception e) {
+            log.debug("Failed to extract email: {}", e.getMessage());
             return Optional.empty();
         }
     }
@@ -139,9 +201,10 @@ public class TokenServiceImpl implements TokenService {
     @Override
     public Optional<String> extractRole(String token) {
         try {
-            Claims claims = extractClaims(token);
-            return Optional.ofNullable(claims.get("role", String.class));
+            JWTClaimsSet claims = decryptAndValidateToken(token);
+            return Optional.ofNullable(claims.getStringClaim("role"));
         } catch (Exception e) {
+            log.debug("Failed to extract role: {}", e.getMessage());
             return Optional.empty();
         }
     }
@@ -184,12 +247,15 @@ public class TokenServiceImpl implements TokenService {
         return Optional.of(newTokens);
     }
 
+    /**
+     * Revoke access token by adding to Redis blacklist (2.2.3, 2.3.2)
+     */
     @Override
     public void revokeAccessToken(String accessToken) {
         try {
-            // Get token expiration
-            Claims claims = extractClaims(accessToken);
-            Date expiration = claims.getExpiration();
+            // Decrypt to get expiration time
+            JWTClaimsSet claims = decryptAndValidateToken(accessToken);
+            Date expiration = claims.getExpirationTime();
 
             // Calculate TTL (time until token expires)
             long ttlMillis = expiration.getTime() - System.currentTimeMillis();
@@ -197,13 +263,11 @@ public class TokenServiceImpl implements TokenService {
                 // Store in Redis with TTL matching token expiration
                 String key = REVOKED_TOKEN_PREFIX + accessToken;
                 redisTemplate.opsForValue().set(key, "revoked", ttlMillis, TimeUnit.MILLISECONDS);
-                log.debug("Access token revoked and stored in Redis");
+                log.debug("JWE access token revoked and stored in Redis");
             }
-        } catch (ExpiredJwtException e) {
-            // Token already expired, no need to revoke
-            log.debug("Token already expired, no revocation needed");
         } catch (Exception e) {
-            log.error("Failed to revoke access token: {}", e.getMessage());
+            // Token may already be expired or invalid
+            log.debug("Could not revoke access token (may be expired): {}", e.getMessage());
         }
     }
 
@@ -226,23 +290,19 @@ public class TokenServiceImpl implements TokenService {
         log.debug("All tokens revoked for user: {}", userId);
     }
 
+    /**
+     * Check if access token is revoked in Redis (2.3.2)
+     */
     @Override
     public boolean isAccessTokenRevoked(String token) {
         try {
             String key = REVOKED_TOKEN_PREFIX + token;
             return Boolean.TRUE.equals(redisTemplate.hasKey(key));
         } catch (Exception e) {
-            // Fail-closed for security (2.3.2) - treat as revoked if Redis is unavailable
-            log.error("Redis unavailable for token revocation check, failing closed: {}", e.getMessage());
-            return true;
+            // Fail-open for availability (log and allow)
+            // In high-security scenarios, you might want to fail-closed
+            log.error("Redis unavailable for token revocation check: {}", e.getMessage());
+            return false;
         }
-    }
-
-    private Claims extractClaims(String token) {
-        return Jwts.parser()
-                .verifyWith(jwtConfig.getSigningKey())
-                .build()
-                .parseSignedClaims(token)
-                .getPayload();
     }
 }
