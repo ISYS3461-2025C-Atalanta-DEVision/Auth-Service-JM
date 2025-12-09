@@ -22,136 +22,97 @@ import java.util.Set;
  * Note: Controller communicates with Business Logic Layer (AuthenticationApi)
  * and does NOT directly access Repository Layer (A.2.2).
  */
-@Slf4j                          // Creates a 'log' object for logging (log.info, log.debug, etc.)
-@RestController                 // Marks this class as a REST controller (returns JSON by default)
-@RequestMapping("/api/auth")    // Base URL path - all endpoints start with /api/auth
-@RequiredArgsConstructor        // Lombok generates constructor for 'final' fields (dependency injection)
+@Slf4j
+@RestController
+@RequestMapping("/api/auth")
+@RequiredArgsConstructor
 public class AuthController {
 
-    // Injected via constructor - this is the business logic layer
     private final AuthenticationApi authenticationService;
 
     // ==================== REGISTRATION ====================
-    // POST /api/auth/register
-    // Registers a new company account. Returns 201 CREATED on success.
-    // @Valid triggers validation on request fields (e.g., @NotNull, @Email)
-    // @RequestBody parses JSON body into CompanyRegistrationRequest object
     @PostMapping("/register")
-    // ResponseEntity<T> = HTTP response wrapper that lets us set status code, headers, and body
-    // ApiResponse<T> = Our custom wrapper with success/error info + data payload
-    // CompanyProfileResponse = The actual data (company details after registration)
-    public ResponseEntity<ApiResponse<CompanyProfileResponse>> register(
-            // @Valid = Run validation rules defined in CompanyRegistrationRequest (e.g., @NotNull, @Email)
-            //          If validation fails, Spring auto-returns 400 Bad Request
-            // @RequestBody = Parse incoming JSON into CompanyRegistrationRequest object
+    public ResponseEntity<CompanyProfileResponse> register(
             @Valid @RequestBody CompanyRegistrationRequest request) {
-        // Log the registration attempt (email only, not password for security)
         log.info("Registration request received for email: {}", request.getEmail());
-        // Delegate to service layer - controller doesn't contain business logic
-        ApiResponse<CompanyProfileResponse> response = authenticationService.registerCompany(request);
-        // Return HTTP 201 Created (not 200 OK) because we created a new resource
-        // .body(response) sets the JSON response body
+        CompanyProfileResponse response = authenticationService.registerCompany(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
     // ==================== LOGIN ====================
-    // POST /api/auth/login
-    // Authenticates user and returns JWT tokens (access + refresh).
-    // Extracts client IP for security logging/audit.
     @PostMapping("/login")
-    public ResponseEntity<ApiResponse<LoginResponse>> login(
+    public ResponseEntity<LoginResponse> login(
             @Valid @RequestBody LoginRequest request,
             HttpServletRequest httpRequest) {
         String ipAddress = getClientIp(httpRequest);
         log.info("Login request received for email: {} from IP: {}", request.getEmail(), ipAddress);
-        ApiResponse<LoginResponse> response = authenticationService.login(request, ipAddress);
+        LoginResponse response = authenticationService.login(request, ipAddress);
         return ResponseEntity.ok(response);
     }
 
     // ==================== TOKEN REFRESH ====================
-    // POST /api/auth/refresh
-    // Gets new access token using valid refresh token.
-    // Called when access token expires but refresh token is still valid.
     @PostMapping("/refresh")
-    public ResponseEntity<ApiResponse<LoginResponse>> refreshToken(
+    public ResponseEntity<LoginResponse> refreshToken(
             @Valid @RequestBody RefreshTokenRequest request) {
         log.debug("Token refresh request received");
-        ApiResponse<LoginResponse> response = authenticationService.refreshToken(request);
+        LoginResponse response = authenticationService.refreshToken(request);
         return ResponseEntity.ok(response);
     }
 
     // ==================== LOGOUT ====================
-    // POST /api/auth/logout
-    // Invalidates tokens (adds to blacklist in Redis).
-    // Both tokens are optional - invalidates whichever are provided.
     @PostMapping("/logout")
-    public ResponseEntity<ApiResponse<Void>> logout(
+    public ResponseEntity<Void> logout(
             @RequestHeader(value = "Authorization", required = false) String authHeader,
             @RequestBody(required = false) RefreshTokenRequest refreshTokenRequest) {
 
-        // Extract access token from "Bearer <token>" header
         String accessToken = null;
         if (authHeader != null && authHeader.startsWith("Bearer ")) {
-            accessToken = authHeader.substring(7);  // Remove "Bearer " prefix (7 chars)
+            accessToken = authHeader.substring(7);
         }
 
-        // Extract refresh token from body if provided
         String refreshToken = refreshTokenRequest != null ? refreshTokenRequest.getRefreshToken() : null;
 
-        ApiResponse<Void> response = authenticationService.logout(accessToken, refreshToken);
-        return ResponseEntity.ok(response);
+        authenticationService.logout(accessToken, refreshToken);
+        return ResponseEntity.ok().build();
     }
 
     // ==================== ACCOUNT ACTIVATION ====================
-    // GET /api/auth/activate/{token}
-    // Activates account using token sent via email after registration.
-    // @PathVariable extracts {token} from the URL path.
     @GetMapping("/activate/{token}")
-    public ResponseEntity<ApiResponse<Void>> activateAccount(@PathVariable String token) {
+    public ResponseEntity<Void> activateAccount(@PathVariable String token) {
         log.info("Account activation request received");
-        ApiResponse<Void> response = authenticationService.activateAccount(token);
-        return ResponseEntity.ok(response);
+        authenticationService.activateAccount(token);
+        return ResponseEntity.ok().build();
     }
 
     // ==================== FORGOT PASSWORD ====================
-    // POST /api/auth/forgot-password?email=user@example.com
-    // Sends password reset email. Always returns success to prevent email enumeration.
-    // @RequestParam extracts 'email' from query string.
     @PostMapping("/forgot-password")
-    public ResponseEntity<ApiResponse<Void>> forgotPassword(@RequestParam String email) {
+    public ResponseEntity<Void> forgotPassword(@RequestParam String email) {
         log.info("Password reset request for email: {}", email);
-        ApiResponse<Void> response = authenticationService.requestPasswordReset(email);
-        return ResponseEntity.ok(response);
+        authenticationService.requestPasswordReset(email);
+        return ResponseEntity.ok().build();
     }
 
     // ==================== RESET PASSWORD ====================
-    // POST /api/auth/reset-password/{token}?newPassword=xxx
-    // Resets password using token from reset email.
     @PostMapping("/reset-password/{token}")
-    public ResponseEntity<ApiResponse<Void>> resetPassword(
+    public ResponseEntity<Void> resetPassword(
             @PathVariable String token,
             @RequestParam String newPassword) {
         log.info("Password reset attempt with token");
-        ApiResponse<Void> response = authenticationService.resetPassword(token, newPassword);
-        return ResponseEntity.ok(response);
+        authenticationService.resetPassword(token, newPassword);
+        return ResponseEntity.ok().build();
     }
 
     // ==================== CHANGE PASSWORD ====================
-    // POST /api/auth/change-password
-    // Changes password for authenticated user (requires current password).
-    // @RequestAttribute reads userId set by gateway from JWT token.
     @PostMapping("/change-password")
-    public ResponseEntity<ApiResponse<Void>> changePassword(
+    public ResponseEntity<Void> changePassword(
             @Valid @RequestBody PasswordChangeRequest request,
             @RequestAttribute("userId") String userId) {
         log.info("Password change request for user: {}", userId);
-        ApiResponse<Void> response = authenticationService.changePassword(userId, request);
-        return ResponseEntity.ok(response);
+        authenticationService.changePassword(userId, request);
+        return ResponseEntity.ok().build();
     }
 
     // ==================== TOKEN VALIDATION ====================
-    // GET /api/auth/validate
-    // Validates if access token is still valid. Used by API Gateway.
     @GetMapping("/validate")
     public ResponseEntity<Boolean> validateToken(
             @RequestHeader("Authorization") String authHeader) {
@@ -164,34 +125,25 @@ public class AuthController {
     }
 
     // ==================== COUNTRIES LIST ====================
-    // GET /api/auth/countries
-    // Returns valid countries for registration dropdown.
     @GetMapping("/countries")
-    public ResponseEntity<ApiResponse<Set<String>>> getCountries() {
+    public ResponseEntity<Set<String>> getCountries() {
         Set<String> countries = CountryValidator.getValidCountries();
-        return ResponseEntity.ok(ApiResponse.success(countries));
+        return ResponseEntity.ok(countries);
     }
 
     // ==================== ADMIN LOGIN ====================
-    // POST /api/auth/admin/login
-    // Same as regular login but service layer verifies ADMIN role.
     @PostMapping("/admin/login")
-    public ResponseEntity<ApiResponse<LoginResponse>> adminLogin(
+    public ResponseEntity<LoginResponse> adminLogin(
             @Valid @RequestBody LoginRequest request,
             HttpServletRequest httpRequest) {
         String ipAddress = getClientIp(httpRequest);
         log.info("Admin login request received from IP: {}", ipAddress);
-        ApiResponse<LoginResponse> response = authenticationService.login(request, ipAddress);
+        LoginResponse response = authenticationService.login(request, ipAddress);
         return ResponseEntity.ok(response);
     }
 
     // ==================== HELPER METHODS ====================
-
-    // Extracts client's real IP address.
-    // Checks X-Forwarded-For header first (set by proxies/load balancers),
-    // falls back to direct remote address if not present.
     private String getClientIp(HttpServletRequest request) {
-        // X-Forwarded-For format: "client, proxy1, proxy2" - get first (original client)
         String forwardedFor = request.getHeader("X-Forwarded-For");
         if (forwardedFor != null && !forwardedFor.isEmpty()) {
             return forwardedFor.split(",")[0].trim();

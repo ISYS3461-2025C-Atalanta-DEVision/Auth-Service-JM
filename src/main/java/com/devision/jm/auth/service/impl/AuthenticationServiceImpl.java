@@ -56,12 +56,13 @@ public class AuthenticationServiceImpl implements AuthenticationApi {
 
     @Override
     @Transactional
-    public ApiResponse<CompanyProfileResponse> registerCompany(CompanyRegistrationRequest request) {
+    public CompanyProfileResponse registerCompany(CompanyRegistrationRequest request) {
         log.info("Registering new company with email: {}", request.getEmail());
 
         // Validate country (1.24 - must be from dropdown/predefined list)
         if (!CountryValidator.isValidCountry(request.getCountry())) {
-            return ApiResponse.error("Invalid country. Please select a valid country.");
+            throw new AuthException("Invalid country. Please select a valid country.",
+                    org.springframework.http.HttpStatus.BAD_REQUEST, "INVALID_COUNTRY");
         }
 
         // Check email uniqueness (1.1.2)
@@ -90,13 +91,12 @@ public class AuthenticationServiceImpl implements AuthenticationApi {
         eventPublisher.publishUserRegistered(savedUser);
 
         // Return response
-        CompanyProfileResponse response = userMapper.toCompanyProfileResponse(savedUser);
-        return ApiResponse.success("Registration successful. Please check your email to activate your account.", response);
+        return userMapper.toCompanyProfileResponse(savedUser);
     }
 
     @Override
     @Transactional
-    public ApiResponse<LoginResponse> login(LoginRequest request, String ipAddress) {
+    public LoginResponse login(LoginRequest request, String ipAddress) {
         log.info("Login attempt for email: {}", request.getEmail());
 
         // Check brute-force protection (2.2.2)
@@ -177,31 +177,29 @@ public class AuthenticationServiceImpl implements AuthenticationApi {
                 .build();
 
         log.info("Login successful for user: {}", user.getEmail());
-        return ApiResponse.success("Login successful", response);
+        return response;
     }
 
     @Override
     @Transactional
-    public ApiResponse<LoginResponse> refreshToken(RefreshTokenRequest request) {
+    public LoginResponse refreshToken(RefreshTokenRequest request) {
         log.debug("Token refresh attempt");
 
         TokenInternalDto newTokens = tokenService.refreshTokens(request.getRefreshToken())
                 .orElseThrow(() -> new InvalidTokenException("Failed to refresh token"));
 
-        LoginResponse response = LoginResponse.builder()
+        return LoginResponse.builder()
                 .accessToken(newTokens.getAccessToken())
                 .refreshToken(newTokens.getRefreshToken())
                 .tokenType("Bearer")
                 .expiresIn(Duration.between(LocalDateTime.now(), newTokens.getAccessTokenExpiry()).getSeconds())
                 .refreshExpiresIn(Duration.between(LocalDateTime.now(), newTokens.getRefreshTokenExpiry()).getSeconds())
                 .build();
-
-        return ApiResponse.success("Token refreshed successfully", response);
     }
 
     @Override
     @Transactional
-    public ApiResponse<Void> logout(String accessToken, String refreshToken) {
+    public void logout(String accessToken, String refreshToken) {
         log.info("Logout request");
 
         // Revoke access token (add to Redis blacklist) - 2.2.3
@@ -213,13 +211,11 @@ public class AuthenticationServiceImpl implements AuthenticationApi {
         if (refreshToken != null) {
             tokenService.revokeRefreshToken(refreshToken);
         }
-
-        return ApiResponse.success("Logout successful");
     }
 
     @Override
     @Transactional
-    public ApiResponse<Void> activateAccount(String token) {
+    public void activateAccount(String token) {
         log.info("Account activation attempt with token");
 
         User user = userRepository.findByActivationToken(token)
@@ -240,12 +236,11 @@ public class AuthenticationServiceImpl implements AuthenticationApi {
         eventPublisher.publishUserActivated(user);
 
         log.info("Account activated successfully: {}", user.getEmail());
-        return ApiResponse.success("Account activated successfully. You can now login.");
     }
 
     @Override
     @Transactional
-    public ApiResponse<Void> requestPasswordReset(String email) {
+    public void requestPasswordReset(String email) {
         log.info("Password reset request for email: {}", email);
 
         userRepository.findByEmailIgnoreCase(email).ifPresent(user -> {
@@ -260,14 +255,12 @@ public class AuthenticationServiceImpl implements AuthenticationApi {
                 eventPublisher.publishPasswordResetRequested(user, resetToken);
             }
         });
-
-        // Always return success to prevent email enumeration
-        return ApiResponse.success("If the email exists, a password reset link has been sent.");
+        // Always returns void to prevent email enumeration
     }
 
     @Override
     @Transactional
-    public ApiResponse<Void> resetPassword(String token, String newPassword) {
+    public void resetPassword(String token, String newPassword) {
         log.info("Password reset attempt with token");
 
         User user = userRepository.findByPasswordResetToken(token)
@@ -293,12 +286,11 @@ public class AuthenticationServiceImpl implements AuthenticationApi {
         eventPublisher.publishPasswordResetCompleted(user);
 
         log.info("Password reset successful for user: {}", user.getEmail());
-        return ApiResponse.success("Password reset successful. You can now login with your new password.");
     }
 
     @Override
     @Transactional
-    public ApiResponse<Void> changePassword(String userId, PasswordChangeRequest request) {
+    public void changePassword(String userId, PasswordChangeRequest request) {
         log.info("Password change request for user: {}", userId);
 
         // Validate new password matches confirmation
@@ -335,7 +327,6 @@ public class AuthenticationServiceImpl implements AuthenticationApi {
         );
 
         log.info("Password changed successfully for user: {}", user.getEmail());
-        return ApiResponse.success("Password changed successfully.");
     }
 
     @Override
