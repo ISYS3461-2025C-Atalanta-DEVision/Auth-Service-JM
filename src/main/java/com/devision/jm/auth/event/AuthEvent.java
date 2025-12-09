@@ -47,7 +47,11 @@ public class AuthEvent {
         SEND_WELCOME_EMAIL,
         SEND_ACTIVATION_EMAIL,
         SEND_PASSWORD_RESET_EMAIL,
-        SEND_LOGIN_ALERT
+        SEND_LOGIN_ALERT,
+
+        // Subscription events (Requirement 6.1.2)
+        SUBSCRIPTION_EXPIRING,
+        SUBSCRIPTION_EXPIRED
     }
 
     /**

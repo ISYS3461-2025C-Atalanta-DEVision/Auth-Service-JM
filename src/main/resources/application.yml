@@ -30,6 +30,25 @@ spring:
           max-idle: 5
           min-idle: 2
 
+  # Email Configuration (Brevo SMTP) - Requirements 1.1.3, 6.1.2
+  # Brevo (formerly Sendinblue) - 300 emails/day free, no credit card required
+  # Get credentials from: https://app.brevo.com/settings/keys/smtp
+  mail:
+    host: ${SMTP_HOST:smtp-relay.brevo.com}
+    port: ${SMTP_PORT:587}
+    username: ${SMTP_USERNAME:your-brevo-email}
+    password: ${SMTP_PASSWORD:your-brevo-smtp-key}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+            required: true
+          connectiontimeout: 5000
+          timeout: 5000
+          writetimeout: 5000
+
   # Google OAuth2 Configuration (1.3.1, 2.3.1)
   security:
     oauth2:
@@ -90,7 +109,9 @@ jwt:
 
 # Frontend URL for OAuth2 callback redirect
 app:
+  name: DEVision Job Manager
   frontend-url: ${FRONTEND_URL:http://localhost:3000}
+  from-email: ${FROM_EMAIL:noreply@devision-jm.com}
 
 # Actuator Configuration
 management:
@@ -182,6 +203,7 @@ jwt:
 # Frontend URL for OAuth2 redirect
 app:
   frontend-url: ${FRONTEND_URL}
+  from-email: ${FROM_EMAIL:noreply@devision-jm.com}
 
 # Disable Swagger in production
 springdoc:
