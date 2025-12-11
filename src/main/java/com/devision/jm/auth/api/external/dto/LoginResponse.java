@@ -10,7 +10,7 @@ import lombok.NoArgsConstructor;
  * Login Response DTO (External)
  *
  * Response after successful authentication.
- * Contains access token (JWS - 2.1.2) and refresh token (2.3.3).
+ * Contains access token (JWE encrypted - 2.2.1) and refresh token (2.3.3).
  */
 @Data
 @Builder
@@ -20,7 +20,9 @@ import lombok.NoArgsConstructor;
 public class LoginResponse {
 
     /**
-     * JWT Access Token (JWS signed - 2.1.2)
+     * JWT Access Token (JWE encrypted - 2.2.1 Ultimo)
+     * Payload is encrypted and cannot be read by unauthorized parties.
+     * Frontend should use expiresIn field to track expiration.
      */
     private String accessToken;
 

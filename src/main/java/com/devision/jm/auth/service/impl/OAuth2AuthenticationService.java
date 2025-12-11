@@ -22,68 +22,183 @@ import java.util.Map;
 import java.util.Optional;
 
 /**
- * OAuth2 Authentication Service
+ * OAuth2 Authentication Service - Google SSO User Management
  *
- * Handles Google SSO authentication (1.3.1, 2.3.1).
- * - Registers new SSO users automatically
- * - Links existing accounts if email matches
- * - Generates JWT tokens for authenticated users
+ * WHAT THIS SERVICE DOES:
+ * This service handles the user management part of Google OAuth2 authentication.
+ * It's called by Spring Security AFTER Google authentication succeeds but BEFORE
+ * the success handler runs.
+ *
+ * WHEN IT'S CALLED:
+ * Automatically invoked by Spring Security during OAuth2 flow:
+ * 1. User logs in with Google
+ * 2. Spring Security exchanges authorization code for access token
+ * 3. Spring Security fetches user info from Google
+ * 4. → THIS SERVICE RUNS (loadUser method)
+ * 5. OAuth2SuccessHandler runs (generates JWT tokens)
+ *
+ * KEY RESPONSIBILITIES:
+ * 1. Create new user account if first-time Google login (Req 1.3.1)
+ * 2. Link existing local account to Google if email matches (Req 1.3.2)
+ * 3. Auto-activate SSO users (no email verification needed)
+ * 4. Update last login timestamp
+ * 5. Publish USER_REGISTERED event to Kafka
+ * 6. Generate JWT tokens for OAuth2 success handler
+ *
+ * INHERITANCE:
+ * Extends DefaultOAuth2UserService which:
+ * - Handles communication with Google's userinfo endpoint
+ * - Validates OAuth2 access token
+ * - Returns OAuth2User with user attributes (email, name, sub, etc.)
+ *
+ * CONFIGURATION:
+ * Registered in SecurityConfig.java:
+ * .oauth2Login(oauth2 -> oauth2.userInfoEndpoint(userInfo -> userInfo.userService(this)))
+ *
+ * REQUIREMENTS:
+ * - Req 1.3.1: Company Registration via Google SSO
+ * - Req 1.3.2: Account Linking (link local account to Google)
+ * - Req 2.3.1: Google OAuth Login (Ultimo level)
  */
-@Slf4j
-@Service
-@RequiredArgsConstructor
+@Slf4j              // Lombok: auto-generates logger
+@Service            // Spring: registers this as a service bean
+@RequiredArgsConstructor  // Lombok: generates constructor for final fields
 public class OAuth2AuthenticationService extends DefaultOAuth2UserService {
 
+    // Repository for database operations on User entity
     private final UserRepository userRepository;
+
+    // Service for generating JWT access and refresh tokens
     private final TokenService tokenService;
+
+    // Publisher for sending events to Kafka (USER_REGISTERED, LOGIN_SUCCESS)
     private final AuthEventPublisher eventPublisher;
 
+    /**
+     * Load OAuth2 User - Main Entry Point
+     *
+     * WHEN THIS IS CALLED:
+     * Automatically invoked by Spring Security after fetching user info from Google.
+     * This is part of the OAuth2 authentication flow.
+     *
+     * WHAT HAPPENS:
+     * 1. Calls parent class (DefaultOAuth2UserService) to fetch user info from Google
+     * 2. Extracts provider ID (google, facebook, etc.)
+     * 3. Processes the user (create new account or update existing)
+     * 4. Returns OAuth2User object back to Spring Security
+     *
+     * PARAMETERS:
+     * - userRequest: Contains OAuth2 access token and client registration details
+     *
+     * PARENT METHOD BEHAVIOR (super.loadUser):
+     * - Makes HTTP GET request to Google's userinfo endpoint
+     * - URL: https://www.googleapis.com/oauth2/v3/userinfo
+     * - Header: Authorization: Bearer {access_token}
+     * - Returns OAuth2User with attributes: {sub, email, name, picture, ...}
+     *
+     * TRANSACTION:
+     * @Transactional ensures all database operations succeed or roll back together.
+     * If any error occurs, user creation/update is rolled back.
+     *
+     * @param userRequest OAuth2UserRequest containing access token and registration
+     * @return OAuth2User with user attributes from Google
+     * @throws OAuth2AuthenticationException if user processing fails
+     */
     @Override
-    @Transactional
+    @Transactional  // All database operations in one transaction
     public OAuth2User loadUser(OAuth2UserRequest userRequest) throws OAuth2AuthenticationException {
+        // STEP 1: Call parent class to fetch user info from Google
+        // This makes the actual HTTP request to Google's userinfo endpoint
         OAuth2User oauth2User = super.loadUser(userRequest);
 
+        // STEP 2: Get provider ID (e.g., "google")
+        // This comes from application.yml: spring.security.oauth2.client.registration.google
         String registrationId = userRequest.getClientRegistration().getRegistrationId();
         log.info("OAuth2 login attempt via provider: {}", registrationId);
 
+        // STEP 3: Process the user (create/update account)
         return processOAuth2User(oauth2User, registrationId);
     }
 
     /**
-     * Process OAuth2 user - register if new, update if existing
+     * Process OAuth2 User - Create New or Update Existing Account
+     *
+     * WHAT THIS DOES:
+     * Handles the user account management for OAuth2 authentication.
+     * Determines whether to create a new account or link/update existing account.
+     *
+     * THREE SCENARIOS:
+     * 1. NEW USER: Email doesn't exist → Create new SSO account (status=ACTIVE)
+     * 2. EXISTING LOCAL USER: Email exists with LOCAL auth → Link to Google (Req 1.3.2)
+     * 3. EXISTING SSO USER: Email exists with GOOGLE auth → Update last login
+     *
+     * GOOGLE USER ATTRIBUTES:
+     * {
+     *   "sub": "1234567890",              // Google's unique user ID (never changes)
+     *   "email": "user@gmail.com",        // User's email address
+     *   "name": "John Doe",               // Full name
+     *   "given_name": "John",             // First name
+     *   "family_name": "Doe",             // Last name
+     *   "picture": "https://...",         // Profile picture URL
+     *   "email_verified": true,           // Google already verified the email
+     *   "locale": "en"                    // User's locale
+     * }
+     *
+     * ACCOUNT LINKING (Req 1.3.2):
+     * If a user registered with email/password (LOCAL) and then logs in with Google,
+     * we automatically link their local account to Google:
+     * - Change authProvider: LOCAL → GOOGLE
+     * - Store providerId (Google's unique ID)
+     * - Auto-activate if still PENDING_ACTIVATION
+     * - User can now login with either method
+     *
+     * @param oauth2User OAuth2User object with Google user attributes
+     * @param registrationId Provider ID (e.g., "google")
+     * @return OAuth2User unchanged (needed for Spring Security flow)
+     * @throws OAuth2AuthenticationException if email is null or processing fails
      */
     private OAuth2User processOAuth2User(OAuth2User oauth2User, String registrationId) {
+        // STEP 1: Extract user attributes from Google
         Map<String, Object> attributes = oauth2User.getAttributes();
 
-        String email = (String) attributes.get("email");
-        String name = (String) attributes.get("name");
-        String providerId = (String) attributes.get("sub"); // Google's unique ID
+        // Extract required fields from Google's response
+        String email = (String) attributes.get("email");          // User's email
+        String name = (String) attributes.get("name");            // Full name
+        String providerId = (String) attributes.get("sub");       // Google's unique ID
 
+        // Validate that email is provided (required field)
         if (email == null) {
             throw new OAuth2AuthenticationException("Email not provided by OAuth2 provider");
         }
 
         log.debug("Processing OAuth2 user: email={}, provider={}", email, registrationId);
 
-        // Check if user exists
+        // STEP 2: Check if user already exists in database
         Optional<User> existingUser = userRepository.findByEmailIgnoreCase(email);
 
         if (existingUser.isPresent()) {
+            // USER EXISTS - Update their account
             User user = existingUser.get();
 
-            // Check if user was registered with local auth (1.3.2 - account linking)
+            // SCENARIO: User registered with email/password, now logging in with Google
+            // This is ACCOUNT LINKING (Req 1.3.2)
             if (user.getAuthProvider() == AuthProvider.LOCAL) {
                 log.info("Linking local account to Google SSO: {}", email);
-                user.setAuthProvider(AuthProvider.GOOGLE);
-                user.setProviderId(providerId);
-                // SSO users are automatically activated
+
+                // Update user to link Google account
+                user.setAuthProvider(AuthProvider.GOOGLE);  // Change LOCAL → GOOGLE
+                user.setProviderId(providerId);             // Store Google's unique ID
+
+                // Auto-activate SSO users (no email verification needed)
+                // Google already verified the email, so we trust it
                 if (user.getStatus() == AccountStatus.PENDING_ACTIVATION) {
                     user.setStatus(AccountStatus.ACTIVE);
                 }
+
                 userRepository.save(user);
             }
 
-            // Update last login
+            // Update last login timestamp for audit trail
             user.setLastLogin(LocalDateTime.now());
             userRepository.save(user);
 
@@ -91,11 +206,13 @@ public class OAuth2AuthenticationService extends DefaultOAuth2UserService {
             return oauth2User;
         }
 
-        // Register new SSO user (1.3.1 - Company Registration via Google SSO)
+        // STEP 3: NEW USER - Register them as SSO user
+        // This is COMPANY REGISTRATION VIA GOOGLE SSO (Req 1.3.1)
         User newUser = createSsoUser(email, name, providerId, registrationId);
         userRepository.save(newUser);
 
-        // Publish USER_REGISTERED event
+        // Publish USER_REGISTERED event to Kafka
+        // Other services (Notification, Subscription) will consume this event
         eventPublisher.publishUserRegistered(newUser);
 
         log.info("New SSO user registered: {}", email);
@@ -103,42 +220,132 @@ public class OAuth2AuthenticationService extends DefaultOAuth2UserService {
     }
 
     /**
-     * Create new user from SSO data (1.3.1)
+     * Create New SSO User Account (Req 1.3.1 - Company Registration via Google SSO)
+     *
+     * WHAT THIS DOES:
+     * Creates a new User entity for first-time Google SSO users.
+     *
+     * KEY DIFFERENCES FROM EMAIL/PASSWORD REGISTRATION:
+     * - NO password field (SSO users authenticate through Google)
+     * - status = ACTIVE immediately (no email verification needed)
+     * - authProvider = GOOGLE (not LOCAL)
+     * - providerId = Google's unique user ID (the "sub" claim)
+     * - companyName = User's name from Google (or email prefix if name not provided)
+     *
+     * FIELD MAPPINGS:
+     * - email: From Google user info
+     * - companyName: Google's "name" field OR email prefix (e.g., "john.doe" from "john.doe@gmail.com")
+     * - authProvider: GOOGLE (identifies authentication method)
+     * - providerId: Google's "sub" claim (unique, never changes)
+     * - role: COMPANY (default role for all new users)
+     * - status: ACTIVE (no activation email needed, Google already verified email)
+     * - failedLoginAttempts: 0 (fresh account)
+     *
+     * WHAT'S NOT SET:
+     * - password: null (SSO users don't have passwords)
+     * - activationToken: null (not needed for SSO users)
+     * - activationTokenExpiry: null (not needed for SSO users)
+     *
+     * @param email User's email from Google
+     * @param name User's full name from Google (can be null)
+     * @param providerId Google's unique user ID (the "sub" claim)
+     * @param provider Provider name (e.g., "google")
+     * @return User New user entity (not yet saved to database)
      */
     private User createSsoUser(String email, String name, String providerId, String provider) {
+        // Use Builder pattern to create User entity
         return User.builder()
+                // Email from Google (required field)
                 .email(email)
+
+                // Company name: Use Google's name OR email prefix as fallback
+                // Example: "John Doe" OR "john.doe" from "john.doe@gmail.com"
                 .companyName(name != null ? name : email.split("@")[0])
+
+                // Auth provider: Convert "google" string → AuthProvider.GOOGLE enum
                 .authProvider(AuthProvider.valueOf(provider.toUpperCase()))
+
+                // Store Google's unique user ID (the "sub" claim)
+                // Example: "1234567890"
                 .providerId(providerId)
+
+                // All new users get COMPANY role (can be upgraded to ADMIN later)
                 .role(Role.COMPANY)
-                .status(AccountStatus.ACTIVE) // SSO users are auto-activated
+
+                // SSO users are IMMEDIATELY ACTIVE (no email verification needed)
+                // Google already verified their email, so we trust it
+                .status(AccountStatus.ACTIVE)
+
+                // Initialize failed login counter to 0
                 .failedLoginAttempts(0)
+
                 .build();
     }
 
     /**
-     * Generate tokens for OAuth2 authenticated user (called from success handler)
+     * Generate JWT Tokens for OAuth2 User
+     *
+     * WHEN THIS IS CALLED:
+     * Called by OAuth2SuccessHandler after successful OAuth2 authentication.
+     * This is the final step before redirecting user to frontend.
+     *
+     * WHAT THIS DOES:
+     * 1. Fetch user from database by email
+     * 2. Update last login timestamp
+     * 3. Publish LOGIN_SUCCESS event to Kafka
+     * 4. Generate JWT access token (15 minutes validity)
+     * 5. Generate JWT refresh token (7 days validity)
+     * 6. Return tokens to success handler
+     *
+     * TOKEN TYPE:
+     * Uses standard JWT (NOT JWE) for OAuth2 login.
+     * JWE encryption is only required for email/password login (Req 2.2.1).
+     *
+     * TOKEN CONTENTS:
+     * Access Token JWT Claims:
+     * - sub: User ID
+     * - email: User's email
+     * - role: User's role (COMPANY or ADMIN)
+     * - iat: Issued at timestamp
+     * - exp: Expiration timestamp (15 minutes)
+     * - ip: Client IP address
+     * - device: User agent string
+     *
+     * KAFKA EVENT:
+     * Publishes LOGIN_SUCCESS event with:
+     * - userId, email, role
+     * - ipAddress, deviceInfo (for audit trail)
+     * - timestamp
+     *
+     * @param email User's email address
+     * @param ipAddress Client's IP address (for audit logging)
+     * @param deviceInfo User-Agent string (for audit logging)
+     * @return TokenInternalDto containing access token, refresh token, and expiry times
+     * @throws OAuth2AuthenticationException if user not found (shouldn't happen)
      */
-    @Transactional
+    @Transactional  // Ensure database operations succeed or roll back together
     public TokenInternalDto generateTokensForOAuth2User(String email, String ipAddress, String deviceInfo) {
+        // STEP 1: Fetch user from database
+        // User should exist because processOAuth2User() already created/updated them
         User user = userRepository.findByEmailIgnoreCase(email)
                 .orElseThrow(() -> new OAuth2AuthenticationException("User not found after OAuth2 authentication"));
 
-        // Update last login
+        // STEP 2: Update last login timestamp for audit trail
         user.setLastLogin(LocalDateTime.now());
         userRepository.save(user);
 
-        // Publish login success event
+        // STEP 3: Publish LOGIN_SUCCESS event to Kafka
+        // Other services can consume this for analytics, notifications, etc.
         eventPublisher.publishLoginSuccess(user, ipAddress, deviceInfo);
 
-        // Generate JWT tokens
+        // STEP 4: Generate JWT tokens (access + refresh)
+        // TokenService creates signed JWT tokens with user claims
         return tokenService.generateTokens(
-                user.getId(),
-                user.getEmail(),
-                user.getRole().name(),
-                ipAddress,
-                deviceInfo
+                user.getId(),           // Subject (sub claim)
+                user.getEmail(),        // Email claim
+                user.getRole().name(),  // Role claim (COMPANY or ADMIN)
+                ipAddress,              // IP address (for audit)
+                deviceInfo              // Device info (for audit)
         );
     }
 }

@@ -13,45 +13,98 @@ import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
 /**
- * Email Service Implementation using SendGrid SMTP
+ * Email Service Implementation using SMTP (Brevo/SendGrid)
  *
- * Sends emails via SendGrid's SMTP API for:
- * - Account activation (Requirement 1.1.3)
- * - Password reset
- * - Subscription notifications (Requirement 6.1.2)
+ * FLOW OVERVIEW:
+ * 1. Service method called (e.g., sendActivationEmail) with User object and token
+ * 2. Method builds the activation/reset link using frontendUrl + token
+ * 3. HTML email template is generated with user-specific data
+ * 4. sendHtmlEmail() creates a MIME message and sends via SMTP
+ * 5. All methods are @Async - they run in background thread, don't block caller
+ *
+ * Implements Requirements:
+ * - 1.1.3: Account activation email with activation link
+ * - Password reset email flow
+ * - 6.1.2: Subscription expiration notifications
  */
-@Slf4j
-@Service
-@RequiredArgsConstructor
+@Slf4j      // Lombok: auto-generates private static final Logger log = LoggerFactory.getLogger(...)
+@Service    // Spring: marks this as a service bean, auto-registered in application context
+@RequiredArgsConstructor  // Lombok: generates constructor for final fields (mailSender injection)
 public class EmailServiceImpl implements EmailService {
 
+    // Spring's mail sender - configured via application.yml (spring.mail.*)
+    // Injected automatically via constructor (RequiredArgsConstructor)
     private final JavaMailSender mailSender;
 
-    @Value("${app.frontend-url:http://localhost:3000}")
+    // Frontend URL for building activation/reset links
+    // Configured via APP_FRONTEND_URL env variable on Render
+    @Value("${app.frontend-url}")
     private String frontendUrl;
 
-    @Value("${app.from-email:noreply@devision-jm.com}")
+    // Sender email address shown in "From" field
+    // Configured via APP_FROM_EMAIL env variable on Render
+    @Value("${app.from-email}")
     private String fromEmail;
 
-    @Value("${app.name:DEVision Job Manager}")
+    // Application name used in email subjects and body
+    // Configured via APP_NAME env variable on Render
+    @Value("${app.name}")
     private String appName;
 
+    // ==================== ACCOUNT ACTIVATION EMAIL (Requirement 1.1.3) ====================
+
+    /**
+     * Sends account activation email after company registration.
+     *
+     * @param user            The newly registered user
+     * @param activationToken Unique token for account activation (stored in DB)
+     *
+     * Flow:
+     * 1. User registers → AuthService generates activationToken → calls this method
+     * 2. This method builds link: https://frontend.com/activate?token=abc123
+     * 3. User clicks link → Frontend calls POST /api/auth/activate?token=abc123
+     * 4. Backend validates token → Activates account → Status changes to ACTIVE
+     */
     @Override
-    @Async
+    @Async  // Runs in separate thread - registration response returns immediately
     public void sendActivationEmail(User user, String activationToken) {
+        // Build the activation link that user will click in the email
+        // Example: https://devision-jm.com/activate?token=abc123-def456-ghi789
         String activationLink = frontendUrl + "/activate?token=" + activationToken;
+
+        // Email subject line
         String subject = "Activate Your " + appName + " Account";
 
+        // Generate HTML email body using template method
         String htmlContent = buildActivationEmailHtml(user, activationLink);
 
+        // Send the email via SMTP
         sendHtmlEmail(user.getEmail(), subject, htmlContent);
+
+        // Log success for monitoring/debugging
         log.info("Activation email sent to: {}", user.getEmail());
     }
 
+    // ==================== PASSWORD RESET EMAIL ====================
+
+    /**
+     * Sends password reset email when user requests password recovery.
+     *
+     * @param user       The user requesting password reset
+     * @param resetToken Unique token for password reset (expires in 1 hour)
+     *
+     * Flow:
+     * 1. User clicks "Forgot Password" → enters email
+     * 2. Backend generates resetToken → stores in DB with expiry → calls this method
+     * 3. User receives email → clicks link → Frontend shows new password form
+     * 4. User submits new password → Backend validates token → Updates password
+     */
     @Override
-    @Async
+    @Async  // Non-blocking - response returns immediately to user
     public void sendPasswordResetEmail(User user, String resetToken) {
+        // Build reset link: https://frontend.com/reset-password?token=xyz789
         String resetLink = frontendUrl + "/reset-password?token=" + resetToken;
+
         String subject = "Reset Your " + appName + " Password";
 
         String htmlContent = buildPasswordResetEmailHtml(user, resetLink);
@@ -60,6 +113,14 @@ public class EmailServiceImpl implements EmailService {
         log.info("Password reset email sent to: {}", user.getEmail());
     }
 
+    // ==================== PASSWORD CHANGE CONFIRMATION ====================
+
+    /**
+     * Sends confirmation email after successful password change.
+     * Security feature: notifies user in case of unauthorized password change.
+     *
+     * @param user The user whose password was changed
+     */
     @Override
     @Async
     public void sendPasswordChangeConfirmation(User user) {
@@ -71,6 +132,13 @@ public class EmailServiceImpl implements EmailService {
         log.info("Password change confirmation email sent to: {}", user.getEmail());
     }
 
+    // ==================== WELCOME EMAIL (After Activation) ====================
+
+    /**
+     * Sends welcome email after account is successfully activated.
+     *
+     * @param user The newly activated user
+     */
     @Override
     @Async
     public void sendWelcomeEmail(User user) {
@@ -82,6 +150,15 @@ public class EmailServiceImpl implements EmailService {
         log.info("Welcome email sent to: {}", user.getEmail());
     }
 
+    // ==================== SUBSCRIPTION NOTIFICATIONS (Requirement 6.1.2) ====================
+
+    /**
+     * Sends warning email when subscription is about to expire.
+     * Triggered by scheduled job that checks subscription dates.
+     *
+     * @param user          The user with expiring subscription
+     * @param daysRemaining Number of days until subscription expires
+     */
     @Override
     @Async
     public void sendSubscriptionExpirationWarning(User user, int daysRemaining) {
@@ -93,6 +170,12 @@ public class EmailServiceImpl implements EmailService {
         log.info("Subscription warning email sent to: {} ({} days remaining)", user.getEmail(), daysRemaining);
     }
 
+    /**
+     * Sends notification when subscription has expired.
+     * Account moves to read-only mode after this.
+     *
+     * @param user The user whose subscription expired
+     */
     @Override
     @Async
     public void sendSubscriptionExpiredNotification(User user) {
@@ -104,21 +187,47 @@ public class EmailServiceImpl implements EmailService {
         log.info("Subscription expired email sent to: {}", user.getEmail());
     }
 
-    // ==================== Private Helper Methods ====================
+    // ==================== PRIVATE HELPER: SMTP EMAIL SENDER ====================
 
+    /**
+     * Core method that actually sends the email via SMTP.
+     * All public methods delegate to this method.
+     *
+     * @param to          Recipient email address
+     * @param subject     Email subject line
+     * @param htmlContent HTML body of the email
+     *
+     * Uses JavaMailSender configured in application.yml:
+     * - spring.mail.host: SMTP server (e.g., smtp-relay.brevo.com)
+     * - spring.mail.port: SMTP port (587 for TLS)
+     * - spring.mail.username: SMTP username
+     * - spring.mail.password: SMTP password/API key
+     */
     private void sendHtmlEmail(String to, String subject, String htmlContent) {
         try {
+            // Create a MIME message (supports HTML, attachments, etc.)
             MimeMessage message = mailSender.createMimeMessage();
+
+            // MimeMessageHelper simplifies setting email properties
+            // Parameters: message, multipart=true (for HTML), encoding=UTF-8
             MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
 
-            helper.setFrom(fromEmail);
-            helper.setTo(to);
-            helper.setSubject(subject);
+            // Set email headers
+            helper.setFrom(fromEmail);      // From: noreply@devision-jm.com
+            helper.setTo(to);               // To: user@example.com
+            helper.setSubject(subject);     // Subject: Activate Your Account
+
+            // Set HTML body - second param 'true' indicates HTML content
             helper.setText(htmlContent, true);
 
+            // Send via configured SMTP server
             mailSender.send(message);
+
         } catch (MessagingException e) {
+            // Log error with recipient for debugging
             log.error("Failed to send email to {}: {}", to, e.getMessage());
+
+            // Rethrow as RuntimeException - @Async methods handle exceptions separately
             throw new RuntimeException("Failed to send email", e);
         }
     }
