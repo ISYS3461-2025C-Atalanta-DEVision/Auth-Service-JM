@@ -34,10 +34,12 @@ public class InternalApiKeyValidationFilter extends OncePerRequestFilter {
 
     private static final ObjectMapper objectMapper = new ObjectMapper();
 
-    // Endpoints that can be accessed without internal API key (for health checks, etc.)
+    // Endpoints that can be accessed without internal API key (for health checks, OAuth2, etc.)
     private static final List<String> ALLOWED_WITHOUT_KEY = List.of(
             "/actuator/health",
-            "/actuator/info"
+            "/actuator/info",
+            "/oauth2/",           // OAuth2 authorization endpoints
+            "/login/oauth2/"      // OAuth2 callback endpoints
     );
 
     @Value("${internal.api-key}")
