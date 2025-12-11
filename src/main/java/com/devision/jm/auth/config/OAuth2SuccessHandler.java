@@ -143,7 +143,7 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
 
         } catch (Exception e) {
             // If anything fails, log error and return 500 error to client
-            log.error("Failed to process OAuth2 success: {}", e.getMessage());
+            log.error("Failed to process OAuth2 success for email: {}", email, e);
             response.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
                     "Failed to process authentication");
         }
