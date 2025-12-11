@@ -113,6 +113,14 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
 
         log.info("OAuth2 authentication successful for: {} (userId: {})", email, userId);
 
+        // Validate that userId is present
+        if (userId == null) {
+            log.error("OAuth2 authentication succeeded but userId is null for email: {}", email);
+            response.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
+                    "User ID not found after authentication");
+            return;
+        }
+
         try {
             // STEP 2: Get client information for audit logging
             // Extract IP address from request (handles proxy/load balancer scenarios)
@@ -122,6 +130,8 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
             // Example: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0"
             String deviceInfo = request.getHeader("User-Agent");
 
+            log.debug("Generating tokens for userId: {}, IP: {}, Device: {}", userId, ipAddress, deviceInfo);
+
             // STEP 3: Generate JWT tokens (NOT JWE for OAuth2)
             // This method:
             // - Fetches user by ID (no database transaction timing issues)
@@ -130,6 +140,8 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
             // - Returns TokenInternalDto with both tokens and expiry times
             TokenInternalDto tokens = oauth2AuthenticationService.generateTokensForOAuth2User(
                     userId, ipAddress, deviceInfo);
+
+            log.debug("Tokens generated successfully for userId: {}", userId);
 
             // STEP 4: Send response based on client type
             // Check if client wants JSON response (API client) or browser redirect
@@ -145,9 +157,10 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
 
         } catch (Exception e) {
             // If anything fails, log error and return 500 error to client
-            log.error("Failed to process OAuth2 success for email: {}", email, e);
+            log.error("Failed to process OAuth2 success for email: {} (userId: {})", email, userId, e);
+            log.error("Exception type: {}, Message: {}", e.getClass().getName(), e.getMessage());
             response.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
-                    "Failed to process authentication");
+                    "Failed to process authentication: " + e.getMessage());
         }
     }
 

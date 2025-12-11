@@ -134,17 +134,17 @@ public class HttpCookieOAuth2AuthorizationRequestRepository
         // When browser makes OAuth2 request through API Gateway (api-gateway-khhr.onrender.com)
         // and callback comes back, the cookie must be sent even though it's a cross-site request
         ResponseCookie cookie = ResponseCookie.from(name, value)
-                // Set path to / (root) instead of /auth-service/
-                // This ensures cookie is sent with ALL requests to the domain
-                .path("/")
+                // Set path to /auth-service/ to match the API Gateway routing
+                // This ensures cookie is sent with OAuth2 requests through the gateway
+                .path("/auth-service/")
                 // HttpOnly prevents JavaScript access (XSS protection)
                 .httpOnly(true)
                 // Secure ensures cookie is only sent over HTTPS
                 .secure(true)
-                // SameSite=Lax instead of None
-                // Lax allows cookie to be sent on top-level navigation (OAuth2 redirect from Google)
-                // This is safer than None and should work for OAuth2 callback
-                .sameSite("Lax")
+                // SameSite=None is required for cross-domain OAuth2 callback
+                // When Google redirects back to /auth-service/login/oauth2/code/google
+                // the browser needs to send the cookie even though it's a cross-site request
+                .sameSite("None")
                 // Cookie expiration
                 .maxAge(Duration.ofSeconds(maxAge))
                 .build();
@@ -162,10 +162,10 @@ public class HttpCookieOAuth2AuthorizationRequestRepository
                 .ifPresent(cookie -> {
                     // Create cookie with maxAge=0 to delete it
                     ResponseCookie deleteCookie = ResponseCookie.from(OAUTH2_AUTHORIZATION_REQUEST_COOKIE_NAME, "")
-                            .path("/")  // Must match the path set in addCookie
+                            .path("/auth-service/")  // Must match the path set in addCookie
                             .httpOnly(true)
                             .secure(true)
-                            .sameSite("Lax")  // Must match original cookie
+                            .sameSite("None")  // Must match original cookie
                             .maxAge(0)  // Expire immediately
                             .build();
 

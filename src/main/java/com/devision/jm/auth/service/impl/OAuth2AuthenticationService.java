@@ -159,6 +159,8 @@ public class OAuth2AuthenticationService extends DefaultOAuth2UserService {
         // STEP 1: Extract user attributes from Google
         Map<String, Object> attributes = oauth2User.getAttributes();
 
+        log.debug("OAuth2 user attributes: {}", attributes);
+
         // Extract required fields from Google's response
         String email = (String) attributes.get("email");          // User's email
         String name = (String) attributes.get("name");            // Full name
@@ -166,10 +168,12 @@ public class OAuth2AuthenticationService extends DefaultOAuth2UserService {
 
         // Validate that email is provided (required field)
         if (email == null) {
+            log.error("Email not provided by OAuth2 provider. Attributes: {}", attributes);
             throw new OAuth2AuthenticationException("Email not provided by OAuth2 provider");
         }
 
-        log.debug("Processing OAuth2 user: email={}, provider={}", email, registrationId);
+        log.info("Processing OAuth2 user: email={}, provider={}, name={}, providerId={}",
+                email, registrationId, name, providerId);
 
         // STEP 2: Check if user already exists in database
         Optional<User> existingUser = userRepository.findByEmailIgnoreCase(email);
@@ -200,11 +204,13 @@ public class OAuth2AuthenticationService extends DefaultOAuth2UserService {
             user.setLastLogin(LocalDateTime.now());
             userRepository.save(user);
 
-            log.info("OAuth2 login successful for existing user: {}", email);
+            log.info("OAuth2 login successful for existing user: {} with userId: {}", email, user.getId());
 
             // Add userId to OAuth2User attributes so success handler can use it
             // This avoids querying the database again in the success handler
-            return createOAuth2UserWithUserId(oauth2User, user.getId());
+            OAuth2User updatedOAuth2User = createOAuth2UserWithUserId(oauth2User, user.getId());
+            log.info("Created OAuth2User with userId attribute: {}", user.getId());
+            return updatedOAuth2User;
         }
 
         // STEP 3: NEW USER - Register them as SSO user
@@ -212,11 +218,13 @@ public class OAuth2AuthenticationService extends DefaultOAuth2UserService {
         User newUser = createSsoUser(email, name, providerId, registrationId);
         userRepository.save(newUser);
 
-        log.info("New SSO user registered: {}", email);
+        log.info("New SSO user registered: {} with userId: {}", email, newUser.getId());
 
         // Add userId to OAuth2User attributes so success handler can use it
         // This avoids querying the database again in the success handler
-        return createOAuth2UserWithUserId(oauth2User, newUser.getId());
+        OAuth2User updatedOAuth2User = createOAuth2UserWithUserId(oauth2User, newUser.getId());
+        log.info("Created OAuth2User with userId attribute for new user: {}", newUser.getId());
+        return updatedOAuth2User;
     }
 
     /**
