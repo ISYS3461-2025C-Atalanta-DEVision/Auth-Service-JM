@@ -134,24 +134,23 @@ public class HttpCookieOAuth2AuthorizationRequestRepository
         // When browser makes OAuth2 request through API Gateway (api-gateway-khhr.onrender.com)
         // and callback comes back, the cookie must be sent even though it's a cross-site request
         ResponseCookie cookie = ResponseCookie.from(name, value)
-                // Set path to /auth-service/ to work with API Gateway routing
-                // Cookie is scoped to /auth-service/ path so it's sent on both:
-                // 1. Initial request: /auth-service/oauth2/authorization/google
-                // 2. Callback request: /auth-service/login/oauth2/code/google
-                .path("/auth-service/")
+                // Set path to / (root) instead of /auth-service/
+                // This ensures cookie is sent with ALL requests to the domain
+                .path("/")
                 // HttpOnly prevents JavaScript access (XSS protection)
                 .httpOnly(true)
                 // Secure ensures cookie is only sent over HTTPS
                 .secure(true)
-                // SameSite=None allows cookie to be sent in cross-site requests
-                // Required for OAuth2 flow through API Gateway
-                // Must be combined with Secure=true (browser requirement)
-                .sameSite("None")
+                // SameSite=Lax instead of None
+                // Lax allows cookie to be sent on top-level navigation (OAuth2 redirect from Google)
+                // This is safer than None and should work for OAuth2 callback
+                .sameSite("Lax")
                 // Cookie expiration
                 .maxAge(Duration.ofSeconds(maxAge))
                 .build();
 
         // Add Set-Cookie header to response
+        log.debug("Setting OAuth2 cookie: {}", cookie.toString());
         response.addHeader("Set-Cookie", cookie.toString());
     }
 
@@ -163,10 +162,10 @@ public class HttpCookieOAuth2AuthorizationRequestRepository
                 .ifPresent(cookie -> {
                     // Create cookie with maxAge=0 to delete it
                     ResponseCookie deleteCookie = ResponseCookie.from(OAUTH2_AUTHORIZATION_REQUEST_COOKIE_NAME, "")
-                            .path("/auth-service/")  // Must match the path set in addCookie
+                            .path("/")  // Must match the path set in addCookie
                             .httpOnly(true)
                             .secure(true)
-                            .sameSite("None")  // Must match original cookie
+                            .sameSite("Lax")  // Must match original cookie
                             .maxAge(0)  // Expire immediately
                             .build();
 
