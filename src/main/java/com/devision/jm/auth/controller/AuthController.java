@@ -106,30 +106,6 @@ public class AuthController {
         return ResponseEntity.ok().build();
     }
 
-    // ==================== FORGOT PASSWORD ====================
-    // POST /api/auth/forgot-password?email=xxx - Request password reset email
-    @PostMapping("/forgot-password")
-    public ResponseEntity<Void> forgotPassword(
-            @RequestParam String email) {  // Extract email from query string
-        log.info("Password reset request for email: {}", email);
-        // Generate reset token and send email
-        // Always returns 200 to prevent email enumeration attacks
-        authenticationService.requestPasswordReset(email);
-        return ResponseEntity.ok().build();
-    }
-
-    // ==================== RESET PASSWORD ====================
-    // POST /api/auth/reset-password/{token}?newPassword=xxx - Reset password with token
-    @PostMapping("/reset-password/{token}")
-    public ResponseEntity<Void> resetPassword(
-            @PathVariable String token,  // Reset token from URL path
-            @RequestParam String newPassword) {  // New password from query string
-        log.info("Password reset attempt with token");
-        // Validate token, update password, revoke all existing tokens
-        authenticationService.resetPassword(token, newPassword);
-        return ResponseEntity.ok().build();
-    }
-
     // ==================== CHANGE PASSWORD ====================
     // POST /api/auth/change-password - Change password (requires authentication)
     @PostMapping("/change-password")

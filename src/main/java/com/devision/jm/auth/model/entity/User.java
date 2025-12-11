@@ -94,14 +94,7 @@ public class User extends BaseEntity {
     @Field("activation_token_expiry")
     private LocalDateTime activationTokenExpiry;
 
-    // ==================== Password Reset ====================
-
-    @Indexed(sparse = true)
-    @Field("password_reset_token")
-    private String passwordResetToken;
-
-    @Field("password_reset_token_expiry")
-    private LocalDateTime passwordResetTokenExpiry;
+    // ==================== Password Management ====================
 
     @Field("last_password_change")
     private LocalDateTime lastPasswordChange;

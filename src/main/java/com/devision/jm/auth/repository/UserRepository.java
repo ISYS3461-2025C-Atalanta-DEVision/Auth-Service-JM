@@ -42,11 +42,6 @@ public interface UserRepository extends MongoRepository<User, String> {
     Optional<User> findByActivationToken(String activationToken);
 
     /**
-     * Find user by password reset token
-     */
-    Optional<User> findByPasswordResetToken(String passwordResetToken);
-
-    /**
      * Find users by SSO provider and provider ID (1.3.1)
      */
     Optional<User> findByAuthProviderAndProviderId(AuthProvider authProvider, String providerId);

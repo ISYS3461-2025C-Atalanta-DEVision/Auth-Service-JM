@@ -337,72 +337,7 @@ public class AuthenticationServiceImpl implements AuthenticationApi {
         log.info("Account activated successfully: {}", user.getEmail());
     }
 
-    // ==================== PASSWORD RESET ====================
-
-    /**
-     * Request password reset email
-     *
-     * Generates a reset token and sends email with reset link.
-     * Always returns success to prevent email enumeration attacks.
-     *
-     * @param email Email address to send reset link to
-     */
-    @Override
-    @Transactional
-    public void requestPasswordReset(String email) {
-        log.info("Password reset request for email: {}", email);
-
-        // Only process if user exists (but always return success)
-        userRepository.findByEmailIgnoreCase(email).ifPresent(user -> {
-            // SSO users cannot reset password (they don't have one)
-            if (!user.isSsoUser()) {
-                // Generate reset token (valid for 1 hour)
-                String resetToken = UUID.randomUUID().toString();
-                user.setPasswordResetToken(resetToken);
-                user.setPasswordResetTokenExpiry(LocalDateTime.now().plusHours(1));
-                userRepository.save(user);
-
-                // Send password reset email
-            }
-        });
-        // Always returns void - don't reveal if email exists (security best practice)
-    }
-
-    /**
-     * Reset password using token from email
-     *
-     * @param token Reset token from email link
-     * @param newPassword New password to set
-     */
-    @Override
-    @Transactional
-    public void resetPassword(String token, String newPassword) {
-        log.info("Password reset attempt with token");
-
-        // Find user by reset token
-        User user = userRepository.findByPasswordResetToken(token)
-                .orElseThrow(() -> new InvalidTokenException("Invalid password reset token"));
-
-        // Check if token has expired (1 hour validity)
-        if (user.getPasswordResetTokenExpiry().isBefore(LocalDateTime.now())) {
-            throw new TokenExpiredException("Password reset");
-        }
-
-        // Update password (hash it first!)
-        user.setPasswordHash(passwordEncoder.encode(newPassword));
-        user.setPasswordResetToken(null);         // Clear token (one-time use)
-        user.setPasswordResetTokenExpiry(null);
-        user.setLastPasswordChange(LocalDateTime.now());
-
-        // Security: Revoke all existing tokens (force re-login on all devices)
-        tokenService.revokeAllUserTokens(user.getId());
-
-        userRepository.save(user);
-
-        // Send confirmation email
-
-        log.info("Password reset successful for user: {}", user.getEmail());
-    }
+    // ==================== PASSWORD CHANGE ====================
 
     /**
      * Change password for authenticated user

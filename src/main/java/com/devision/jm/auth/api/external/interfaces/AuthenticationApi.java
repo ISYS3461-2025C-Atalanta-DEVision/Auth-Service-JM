@@ -20,10 +20,6 @@ public interface AuthenticationApi {
 
     void activateAccount(String token);
 
-    void requestPasswordReset(String email);
-
-    void resetPassword(String token, String newPassword);
-
     void changePassword(String userId, PasswordChangeRequest request);
 
     boolean validateToken(String token);

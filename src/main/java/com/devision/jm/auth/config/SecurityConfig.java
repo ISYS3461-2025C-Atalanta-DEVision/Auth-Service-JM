@@ -123,8 +123,6 @@ public class SecurityConfig {
                                 "/api/auth/login",            // Email/password login (Req 2.2.1)
                                 "/api/auth/refresh",          // Refresh access token (Req 2.2.2)
                                 "/api/auth/activate/**",      // Email activation (Req 1.1.3)
-                                "/api/auth/forgot-password",  // Request password reset
-                                "/api/auth/reset-password/**",// Reset password with token
                                 "/api/auth/validate",         // Validate JWT token (internal)
                                 "/api/auth/countries",        // Get countries list
                                 "/api/auth/admin/login",      // Admin login
