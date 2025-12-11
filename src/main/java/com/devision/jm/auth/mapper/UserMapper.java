@@ -60,8 +60,6 @@ public interface UserMapper {
     @Mapping(target = "lockedUntil", ignore = true)
     @Mapping(target = "activationToken", ignore = true)
     @Mapping(target = "activationTokenExpiry", ignore = true)
-    @Mapping(target = "passwordResetToken", ignore = true)
-    @Mapping(target = "passwordResetTokenExpiry", ignore = true)
     @Mapping(target = "lastPasswordChange", ignore = true)
     @Mapping(target = "lastLogin", ignore = true)
     @Mapping(target = "createdAt", ignore = true)
