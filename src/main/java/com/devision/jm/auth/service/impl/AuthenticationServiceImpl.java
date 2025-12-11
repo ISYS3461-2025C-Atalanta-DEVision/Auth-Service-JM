@@ -4,7 +4,6 @@ import com.devision.jm.auth.api.external.dto.*;
 import com.devision.jm.auth.api.external.interfaces.AuthenticationApi;
 import com.devision.jm.auth.api.internal.dto.TokenInternalDto;
 import com.devision.jm.auth.api.internal.interfaces.TokenService;
-import com.devision.jm.auth.event.AuthEventPublisher;
 import com.devision.jm.auth.exception.*;
 import com.devision.jm.auth.mapper.UserMapper;
 import com.devision.jm.auth.model.entity.User;
@@ -22,7 +21,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
-import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -54,7 +52,6 @@ public class AuthenticationServiceImpl implements AuthenticationApi {
     private final UserMapper userMapper;                // MapStruct mapper for DTO conversions
     private final PasswordEncoder passwordEncoder;       // BCrypt password hashing
     private final TokenService tokenService;            // JWE token generation/validation
-    private final AuthEventPublisher eventPublisher;    // Publishes events (emails, audit)
     private final RedisTemplate<String, String> redisTemplate;  // Redis for brute-force tracking
 
     // ==================== COMPANY REGISTRATION (1.1.1 - 1.3.3) ====================
@@ -110,9 +107,8 @@ public class AuthenticationServiceImpl implements AuthenticationApi {
         User savedUser = userRepository.save(user);
         log.info("Company registered successfully: {}", savedUser.getId());
 
-        // Publish USER_REGISTERED event - triggers activation email (1.1.3)
-        // Event is handled asynchronously by AuthEventPublisher
-        eventPublisher.publishUserRegistered(savedUser);
+        // NOTE: Activation email sending removed (Kafka disabled)
+        log.warn("User registered but activation email NOT sent (email service disabled): {}", savedUser.getEmail());
 
         // Convert entity to response DTO (hides sensitive fields like password hash)
         return userMapper.toCompanyProfileResponse(savedUser);
@@ -152,7 +148,6 @@ public class AuthenticationServiceImpl implements AuthenticationApi {
                 .orElseThrow(() -> {
                     // Record failed attempt even for non-existent users (prevents enumeration)
                     recordFailedAttempt(request.getEmail());
-                    eventPublisher.publishLoginFailed(request.getEmail(), "USER_NOT_FOUND", ipAddress);
                     // Return generic error message (don't reveal if email exists)
                     return new InvalidCredentialsException();
                 });
@@ -187,7 +182,6 @@ public class AuthenticationServiceImpl implements AuthenticationApi {
         if (!passwordEncoder.matches(request.getPassword(), user.getPasswordHash())) {
             recordFailedAttempt(request.getEmail());      // Track in Redis
             handleFailedLogin(user);                       // Track in database
-            eventPublisher.publishLoginFailed(request.getEmail(), "INVALID_PASSWORD", ipAddress);
             throw new InvalidCredentialsException();       // Generic error (don't reveal which field is wrong)
         }
 
@@ -209,7 +203,6 @@ public class AuthenticationServiceImpl implements AuthenticationApi {
         );
 
         // Publish LOGIN_SUCCESS event for audit logging
-        eventPublisher.publishLoginSuccess(user, ipAddress, request.getDeviceInfo());
 
         // ===== STEP 8: Build response =====
         LoginResponse response = LoginResponse.builder()
@@ -336,7 +329,6 @@ public class AuthenticationServiceImpl implements AuthenticationApi {
 
         // Publish event - triggers welcome email (async, won't block)
         try {
-            eventPublisher.publishUserActivated(user);
         } catch (Exception e) {
             // Don't fail activation if email fails
             log.error("Failed to publish activation event for {}: {}", user.getEmail(), e.getMessage());
@@ -371,7 +363,6 @@ public class AuthenticationServiceImpl implements AuthenticationApi {
                 userRepository.save(user);
 
                 // Send password reset email
-                eventPublisher.publishPasswordResetRequested(user, resetToken);
             }
         });
         // Always returns void - don't reveal if email exists (security best practice)
@@ -409,7 +400,6 @@ public class AuthenticationServiceImpl implements AuthenticationApi {
         userRepository.save(user);
 
         // Send confirmation email
-        eventPublisher.publishPasswordResetCompleted(user);
 
         log.info("Password reset successful for user: {}", user.getEmail());
     }
@@ -453,13 +443,6 @@ public class AuthenticationServiceImpl implements AuthenticationApi {
         user.setPasswordHash(passwordEncoder.encode(request.getNewPassword()));
         user.setLastPasswordChange(LocalDateTime.now());
         userRepository.save(user);
-
-        // Send confirmation email
-        eventPublisher.publishNotificationEvent(
-                com.devision.jm.auth.event.AuthEvent.EventType.PASSWORD_CHANGED,
-                user,
-                Map.of("changeType", "USER_INITIATED")
-        );
 
         log.info("Password changed successfully for user: {}", user.getEmail());
     }

@@ -2,7 +2,6 @@ package com.devision.jm.auth.service.impl;
 
 import com.devision.jm.auth.api.internal.dto.TokenInternalDto;
 import com.devision.jm.auth.api.internal.interfaces.TokenService;
-import com.devision.jm.auth.event.AuthEventPublisher;
 import com.devision.jm.auth.model.entity.User;
 import com.devision.jm.auth.model.enums.AccountStatus;
 import com.devision.jm.auth.model.enums.AuthProvider;
@@ -70,9 +69,6 @@ public class OAuth2AuthenticationService extends DefaultOAuth2UserService {
 
     // Service for generating JWT access and refresh tokens
     private final TokenService tokenService;
-
-    // Publisher for sending events to Kafka (USER_REGISTERED, LOGIN_SUCCESS)
-    private final AuthEventPublisher eventPublisher;
 
     /**
      * Load OAuth2 User - Main Entry Point
@@ -211,10 +207,6 @@ public class OAuth2AuthenticationService extends DefaultOAuth2UserService {
         User newUser = createSsoUser(email, name, providerId, registrationId);
         userRepository.save(newUser);
 
-        // Publish USER_REGISTERED event to Kafka
-        // Other services (Notification, Subscription) will consume this event
-        eventPublisher.publishUserRegistered(newUser);
-
         log.info("New SSO user registered: {}", email);
         return oauth2User;
     }
@@ -334,11 +326,7 @@ public class OAuth2AuthenticationService extends DefaultOAuth2UserService {
         user.setLastLogin(LocalDateTime.now());
         userRepository.save(user);
 
-        // STEP 3: Publish LOGIN_SUCCESS event to Kafka
-        // Other services can consume this for analytics, notifications, etc.
-        eventPublisher.publishLoginSuccess(user, ipAddress, deviceInfo);
-
-        // STEP 4: Generate JWT tokens (access + refresh)
+        // STEP 3: Generate JWT tokens (access + refresh)
         // TokenService creates signed JWT tokens with user claims
         return tokenService.generateTokens(
                 user.getId(),           // Subject (sub claim)

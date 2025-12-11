@@ -67,20 +67,6 @@ spring:
             user-info-uri: https://www.googleapis.com/oauth2/v3/userinfo
             user-name-attribute: sub
 
-  # Kafka Configuration (inter-service communication - A.3.2)
-  kafka:
-    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}
-    producer:
-      key-serializer: org.apache.kafka.common.serialization.StringSerializer
-      value-serializer: org.apache.kafka.common.serialization.StringSerializer
-      acks: all
-      retries: 3
-    consumer:
-      group-id: auth-service-group
-      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
-      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
-      auto-offset-reset: earliest
-
 # Eureka Client Configuration (Service Discovery - D.3.1)
 eureka:
   client:
@@ -127,7 +113,6 @@ logging:
     root: INFO
     com.devision.jm.auth: DEBUG
     org.springframework.security: DEBUG
-    org.springframework.kafka: INFO
     org.springframework.data.redis: INFO
   pattern:
     console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
@@ -157,9 +142,6 @@ spring:
       password: ${REDIS_PASSWORD}
       ssl:
         enabled: true  # Upstash requires SSL
-
-  kafka:
-    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}
 
 # Eureka Client Configuration
 eureka:
