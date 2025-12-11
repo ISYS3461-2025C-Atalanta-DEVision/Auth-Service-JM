@@ -4,11 +4,13 @@ import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.ResponseCookie;
 import org.springframework.security.oauth2.client.web.AuthorizationRequestRepository;
 import org.springframework.security.oauth2.core.endpoint.OAuth2AuthorizationRequest;
 import org.springframework.stereotype.Component;
 
 import java.io.*;
+import java.time.Duration;
 import java.util.Base64;
 
 /**
@@ -127,17 +129,30 @@ public class HttpCookieOAuth2AuthorizationRequestRepository
      * Add Cookie to Response
      */
     private void addCookie(HttpServletResponse response, String name, String value, int maxAge) {
-        Cookie cookie = new Cookie(name, value);
-        // IMPORTANT: Set path to /auth-service/ to work with API Gateway routing
-        // When requests go through Gateway at api-gateway-khhr.onrender.com/auth-service/...
-        // the cookie must be scoped to /auth-service/ path so it's sent on both:
-        // 1. Initial request: /auth-service/oauth2/authorization/google
-        // 2. Callback request: /auth-service/login/oauth2/code/google
-        cookie.setPath("/auth-service/");
-        cookie.setHttpOnly(true);  // Prevents JavaScript access (XSS protection)
-        cookie.setMaxAge(maxAge);
-        cookie.setSecure(true);  // Only send over HTTPS
-        response.addCookie(cookie);
+        // Use ResponseCookie to set SameSite attribute
+        // CRITICAL: SameSite=None is required for cross-site OAuth2 requests
+        // When browser makes OAuth2 request through API Gateway (api-gateway-khhr.onrender.com)
+        // and callback comes back, the cookie must be sent even though it's a cross-site request
+        ResponseCookie cookie = ResponseCookie.from(name, value)
+                // Set path to /auth-service/ to work with API Gateway routing
+                // Cookie is scoped to /auth-service/ path so it's sent on both:
+                // 1. Initial request: /auth-service/oauth2/authorization/google
+                // 2. Callback request: /auth-service/login/oauth2/code/google
+                .path("/auth-service/")
+                // HttpOnly prevents JavaScript access (XSS protection)
+                .httpOnly(true)
+                // Secure ensures cookie is only sent over HTTPS
+                .secure(true)
+                // SameSite=None allows cookie to be sent in cross-site requests
+                // Required for OAuth2 flow through API Gateway
+                // Must be combined with Secure=true (browser requirement)
+                .sameSite("None")
+                // Cookie expiration
+                .maxAge(Duration.ofSeconds(maxAge))
+                .build();
+
+        // Add Set-Cookie header to response
+        response.addHeader("Set-Cookie", cookie.toString());
     }
 
     /**
@@ -146,11 +161,16 @@ public class HttpCookieOAuth2AuthorizationRequestRepository
     private void removeAuthorizationRequestCookies(HttpServletRequest request, HttpServletResponse response) {
         getCookie(request, OAUTH2_AUTHORIZATION_REQUEST_COOKIE_NAME)
                 .ifPresent(cookie -> {
-                    Cookie deleteCookie = new Cookie(OAUTH2_AUTHORIZATION_REQUEST_COOKIE_NAME, "");
-                    deleteCookie.setPath("/auth-service/");  // Must match the path set in addCookie
-                    deleteCookie.setHttpOnly(true);
-                    deleteCookie.setMaxAge(0);  // Expire immediately
-                    response.addCookie(deleteCookie);
+                    // Create cookie with maxAge=0 to delete it
+                    ResponseCookie deleteCookie = ResponseCookie.from(OAUTH2_AUTHORIZATION_REQUEST_COOKIE_NAME, "")
+                            .path("/auth-service/")  // Must match the path set in addCookie
+                            .httpOnly(true)
+                            .secure(true)
+                            .sameSite("None")  // Must match original cookie
+                            .maxAge(0)  // Expire immediately
+                            .build();
+
+                    response.addHeader("Set-Cookie", deleteCookie.toString());
                 });
     }
 
