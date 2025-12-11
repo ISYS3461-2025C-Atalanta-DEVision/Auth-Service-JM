@@ -7,20 +7,20 @@ import com.devision.jm.auth.model.enums.AccountStatus;
 import com.devision.jm.auth.model.enums.AuthProvider;
 import com.devision.jm.auth.model.enums.Role;
 import com.devision.jm.auth.repository.UserRepository;
-import jakarta.persistence.EntityManager;
-import jakarta.persistence.PersistenceContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.oauth2.client.userinfo.DefaultOAuth2UserService;
 import org.springframework.security.oauth2.client.userinfo.OAuth2UserRequest;
 import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
+import org.springframework.security.oauth2.core.user.DefaultOAuth2User;
 import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
 
 /**
  * OAuth2 Authentication Service - Google SSO User Management
@@ -71,10 +71,6 @@ public class OAuth2AuthenticationService extends DefaultOAuth2UserService {
 
     // Service for generating JWT access and refresh tokens
     private final TokenService tokenService;
-
-    // EntityManager for flushing transactions to database immediately
-    @PersistenceContext
-    private EntityManager entityManager;
 
     /**
      * Load OAuth2 User - Main Entry Point
@@ -204,11 +200,11 @@ public class OAuth2AuthenticationService extends DefaultOAuth2UserService {
             user.setLastLogin(LocalDateTime.now());
             userRepository.save(user);
 
-            // CRITICAL: Flush to database immediately so success handler can find the user
-            entityManager.flush();
-
             log.info("OAuth2 login successful for existing user: {}", email);
-            return oauth2User;
+
+            // Add userId to OAuth2User attributes so success handler can use it
+            // This avoids querying the database again in the success handler
+            return createOAuth2UserWithUserId(oauth2User, user.getId());
         }
 
         // STEP 3: NEW USER - Register them as SSO user
@@ -216,13 +212,11 @@ public class OAuth2AuthenticationService extends DefaultOAuth2UserService {
         User newUser = createSsoUser(email, name, providerId, registrationId);
         userRepository.save(newUser);
 
-        // CRITICAL: Flush to database immediately so success handler can find the user
-        // Without this, the transaction won't commit until loadUser() completes,
-        // but the success handler runs after loadUser() returns and tries to query the user
-        entityManager.flush();
-
         log.info("New SSO user registered: {}", email);
-        return oauth2User;
+
+        // Add userId to OAuth2User attributes so success handler can use it
+        // This avoids querying the database again in the success handler
+        return createOAuth2UserWithUserId(oauth2User, newUser.getId());
     }
 
     /**
@@ -289,6 +283,37 @@ public class OAuth2AuthenticationService extends DefaultOAuth2UserService {
     }
 
     /**
+     * Create OAuth2User with userId attribute
+     *
+     * WHAT THIS DOES:
+     * Wraps the original OAuth2User and adds the userId to its attributes.
+     * This allows the success handler to access the userId without querying the database again.
+     *
+     * WHY THIS IS NEEDED:
+     * The user is saved in a @Transactional method, but the transaction may not commit
+     * until after the method completes. If the success handler tries to query the user
+     * immediately, it might not find them yet. By passing the userId directly in the
+     * OAuth2User attributes, we avoid this timing issue.
+     *
+     * @param oauth2User Original OAuth2User from Google
+     * @param userId Database user ID
+     * @return New OAuth2User with userId attribute added
+     */
+    private OAuth2User createOAuth2UserWithUserId(OAuth2User oauth2User, String userId) {
+        // Create a mutable copy of the attributes
+        Map<String, Object> attributes = new HashMap<>(oauth2User.getAttributes());
+
+        // Add our custom userId attribute
+        attributes.put("userId", userId);
+
+        // Create authorities (roles) for the user
+        Set<GrantedAuthority> authorities = new HashSet<>(oauth2User.getAuthorities());
+
+        // Return new OAuth2User with updated attributes
+        return new DefaultOAuth2User(authorities, attributes, "email");
+    }
+
+    /**
      * Generate JWT Tokens for OAuth2 User
      *
      * WHEN THIS IS CALLED:
@@ -296,11 +321,10 @@ public class OAuth2AuthenticationService extends DefaultOAuth2UserService {
      * This is the final step before redirecting user to frontend.
      *
      * WHAT THIS DOES:
-     * 1. Fetch user from database by email
-     * 2. Update last login timestamp
-     * 3. Generate JWT access token (15 minutes validity)
-     * 4. Generate JWT refresh token (7 days validity)
-     * 5. Return tokens to success handler
+     * 1. Fetch user from database by userId (passed from OAuth2User attributes)
+     * 2. Generate JWT access token (15 minutes validity)
+     * 3. Generate JWT refresh token (7 days validity)
+     * 4. Return tokens to success handler
      *
      * TOKEN TYPE:
      * Uses standard JWT (NOT JWE) for OAuth2 login.
@@ -316,23 +340,19 @@ public class OAuth2AuthenticationService extends DefaultOAuth2UserService {
      * - ip: Client IP address
      * - device: User agent string
      *
-     * @param email User's email address
+     * @param userId User's database ID (from OAuth2User attributes)
      * @param ipAddress Client's IP address (for audit logging)
      * @param deviceInfo User-Agent string (for audit logging)
      * @return TokenInternalDto containing access token, refresh token, and expiry times
      * @throws OAuth2AuthenticationException if user not found (shouldn't happen)
      */
-    public TokenInternalDto generateTokensForOAuth2User(String email, String ipAddress, String deviceInfo) {
-        // STEP 1: Fetch user from database
-        // User should exist because processOAuth2User() already created/updated them
-        User user = userRepository.findByEmailIgnoreCase(email)
+    public TokenInternalDto generateTokensForOAuth2User(String userId, String ipAddress, String deviceInfo) {
+        // STEP 1: Fetch user from database by ID
+        // userId was passed through OAuth2User attributes to avoid transaction timing issues
+        User user = userRepository.findById(userId)
                 .orElseThrow(() -> new OAuth2AuthenticationException("User not found after OAuth2 authentication"));
 
-        // STEP 2: Update last login timestamp for audit trail
-        user.setLastLogin(LocalDateTime.now());
-        userRepository.save(user);
-
-        // STEP 3: Generate JWT tokens (access + refresh)
+        // STEP 2: Generate JWT tokens (access + refresh)
         // TokenService creates signed JWT tokens with user claims
         return tokenService.generateTokens(
                 user.getId(),           // Subject (sub claim)

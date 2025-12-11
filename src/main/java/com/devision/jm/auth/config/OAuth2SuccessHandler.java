@@ -105,11 +105,13 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
         // The Authentication object contains OAuth2User with Google's user info
         OAuth2User oauth2User = (OAuth2User) authentication.getPrincipal();
 
-        // Extract email from Google user attributes
+        // Extract email and userId from OAuth2User attributes
         // Google returns: { "sub": "12345", "email": "user@gmail.com", "name": "John Doe", ... }
+        // We added userId in OAuth2AuthenticationService.createOAuth2UserWithUserId()
         String email = oauth2User.getAttribute("email");
+        String userId = oauth2User.getAttribute("userId");
 
-        log.info("OAuth2 authentication successful for: {}", email);
+        log.info("OAuth2 authentication successful for: {} (userId: {})", email, userId);
 
         try {
             // STEP 2: Get client information for audit logging
@@ -122,12 +124,12 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
 
             // STEP 3: Generate JWT tokens (NOT JWE for OAuth2)
             // This method:
+            // - Fetches user by ID (no database transaction timing issues)
             // - Generates access token (15 minutes validity)
             // - Generates refresh token (7 days validity)
-            // - Publishes LOGIN_SUCCESS event to Kafka
             // - Returns TokenInternalDto with both tokens and expiry times
             TokenInternalDto tokens = oauth2AuthenticationService.generateTokensForOAuth2User(
-                    email, ipAddress, deviceInfo);
+                    userId, ipAddress, deviceInfo);
 
             // STEP 4: Send response based on client type
             // Check if client wants JSON response (API client) or browser redirect
