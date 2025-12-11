@@ -66,15 +66,11 @@ public class EmailServiceImpl implements EmailService {
      * 4. Backend validates token → Activates account → Status changes to ACTIVE
      */
     @Override
-    // NOTE: @Async removed temporarily for debugging - emails send synchronously to catch errors
+    @Async  // Runs in separate thread - registration response returns immediately
     public void sendActivationEmail(User user, String activationToken) {
-        log.info("Preparing to send activation email to: {}", user.getEmail());
-        log.info("Frontend URL: {}, App Name: {}, From Email: {}", frontendUrl, appName, fromEmail);
-
         // Build the activation link that user will click in the email
-        // Example: https://devision-jm.com/activate?token=abc123-def456-ghi789
-        String activationLink = frontendUrl + "/activate?token=" + activationToken;
-        log.info("Activation link: {}", activationLink);
+        // Example: https://devision-jm.com/activate/abc123-def456-ghi789
+        String activationLink = frontendUrl + "/activate/" + activationToken;
 
         // Email subject line
         String subject = "Activate Your " + appName + " Account";
@@ -83,11 +79,10 @@ public class EmailServiceImpl implements EmailService {
         String htmlContent = buildActivationEmailHtml(user, activationLink);
 
         // Send the email via SMTP
-        log.info("Attempting to send email via SMTP...");
         sendHtmlEmail(user.getEmail(), subject, htmlContent);
 
         // Log success for monitoring/debugging
-        log.info("Activation email sent successfully to: {}", user.getEmail());
+        log.info("Activation email sent to: {}", user.getEmail());
     }
 
     // ==================== PASSWORD RESET EMAIL ====================
