@@ -57,6 +57,7 @@ public class SecurityConfig {
 
     // Handler that executes after successful OAuth2 login (generates tokens, redirects)
     private final OAuth2SuccessHandler oauth2SuccessHandler;
+    private final OAuth2FailureHandler oauth2FailureHandler;
 
     /**
      * Security Filter Chain - Main Security Configuration
@@ -172,6 +173,11 @@ public class SecurityConfig {
                         // YOUR CODE: Generate access/refresh tokens, redirect to frontend with tokens
                         // See: OAuth2SuccessHandler.onAuthenticationSuccess()
                         .successHandler(oauth2SuccessHandler)
+
+                        // Custom failure handler to handle OAuth2 authentication errors
+                        // After authentication fails, this handler redirects to frontend with error
+                        // See: OAuth2FailureHandler.onAuthenticationFailure()
+                        .failureHandler(oauth2FailureHandler)
                 )
 
                 // ========== Filter Chain Configuration ==========
