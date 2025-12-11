@@ -7,6 +7,8 @@ import com.devision.jm.auth.model.enums.AccountStatus;
 import com.devision.jm.auth.model.enums.AuthProvider;
 import com.devision.jm.auth.model.enums.Role;
 import com.devision.jm.auth.repository.UserRepository;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.oauth2.client.userinfo.DefaultOAuth2UserService;
@@ -69,6 +71,10 @@ public class OAuth2AuthenticationService extends DefaultOAuth2UserService {
 
     // Service for generating JWT access and refresh tokens
     private final TokenService tokenService;
+
+    // EntityManager for flushing transactions to database immediately
+    @PersistenceContext
+    private EntityManager entityManager;
 
     /**
      * Load OAuth2 User - Main Entry Point
@@ -198,6 +204,9 @@ public class OAuth2AuthenticationService extends DefaultOAuth2UserService {
             user.setLastLogin(LocalDateTime.now());
             userRepository.save(user);
 
+            // CRITICAL: Flush to database immediately so success handler can find the user
+            entityManager.flush();
+
             log.info("OAuth2 login successful for existing user: {}", email);
             return oauth2User;
         }
@@ -206,6 +215,11 @@ public class OAuth2AuthenticationService extends DefaultOAuth2UserService {
         // This is COMPANY REGISTRATION VIA GOOGLE SSO (Req 1.3.1)
         User newUser = createSsoUser(email, name, providerId, registrationId);
         userRepository.save(newUser);
+
+        // CRITICAL: Flush to database immediately so success handler can find the user
+        // Without this, the transaction won't commit until loadUser() completes,
+        // but the success handler runs after loadUser() returns and tries to query the user
+        entityManager.flush();
 
         log.info("New SSO user registered: {}", email);
         return oauth2User;
