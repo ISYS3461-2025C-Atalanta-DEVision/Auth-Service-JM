@@ -59,6 +59,9 @@ public class SecurityConfig {
     private final OAuth2SuccessHandler oauth2SuccessHandler;
     private final OAuth2FailureHandler oauth2FailureHandler;
 
+    // Cookie-based repository for storing OAuth2 authorization requests (stateless)
+    private final HttpCookieOAuth2AuthorizationRequestRepository cookieAuthorizationRequestRepository;
+
     /**
      * Security Filter Chain - Main Security Configuration
      *
@@ -161,6 +164,13 @@ public class SecurityConfig {
                 // YOU DON'T NEED TO CREATE A CONTROLLER FOR THESE ENDPOINTS!
                 // Spring Security handles all OAuth2 protocol interactions automatically.
                 .oauth2Login(oauth2 -> oauth2
+                        // Cookie-based authorization request repository (for stateless sessions)
+                        // Stores OAuth2 state in cookies instead of HTTP sessions
+                        // Required because we use SessionCreationPolicy.STATELESS for JWT auth
+                        // See: HttpCookieOAuth2AuthorizationRequestRepository
+                        .authorizationEndpoint(authorization -> authorization
+                                .authorizationRequestRepository(cookieAuthorizationRequestRepository))
+
                         // Custom user service to process OAuth2 user data
                         // After Spring Security fetches user info from Google, it calls this service
                         .userInfoEndpoint(userInfo -> userInfo
