@@ -37,3 +37,6 @@ Thumbs.db
 
 # Claude
 .claude/
+.env.local
+.env.production
+.env

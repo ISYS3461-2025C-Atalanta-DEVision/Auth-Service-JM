@@ -2,6 +2,7 @@ package com.devision.jm.auth.config;
 
 import com.devision.jm.auth.filter.InternalApiKeyValidationFilter;
 import com.devision.jm.auth.filter.JwtAuthenticationFilter;
+import com.devision.jm.auth.service.impl.CustomOidcUserService;
 import com.devision.jm.auth.service.impl.OAuth2AuthenticationService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
@@ -54,6 +55,9 @@ public class SecurityConfig {
 
     // Service that processes OAuth2 user data from Google (creates/links accounts)
     private final OAuth2AuthenticationService oauth2AuthenticationService;
+
+    // Service that processes OIDC user data from Google (Google uses OIDC, not plain OAuth2)
+    private final CustomOidcUserService customOidcUserService;
 
     // Handler that executes after successful OAuth2 login (generates tokens, redirects)
     private final OAuth2SuccessHandler oauth2SuccessHandler;
@@ -176,7 +180,11 @@ public class SecurityConfig {
                         .userInfoEndpoint(userInfo -> userInfo
                                 // YOUR CODE: Check if user exists, create/link account, auto-activate
                                 // See: OAuth2AuthenticationService.loadUser()
-                                .userService(oauth2AuthenticationService))
+                                .userService(oauth2AuthenticationService)
+                                // OIDC User Service (Google uses OIDC, not plain OAuth2)
+                                // This is required because Google returns an OIDC token
+                                // See: CustomOidcUserService.loadUser()
+                                .oidcUserService(customOidcUserService))
 
                         // Custom success handler to generate JWT tokens and redirect
                         // After authentication succeeds, this handler is called

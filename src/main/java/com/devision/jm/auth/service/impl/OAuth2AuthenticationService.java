@@ -11,9 +11,13 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.oauth2.client.oidc.userinfo.OidcUserRequest;
+import org.springframework.security.oauth2.client.oidc.userinfo.OidcUserService;
 import org.springframework.security.oauth2.client.userinfo.DefaultOAuth2UserService;
 import org.springframework.security.oauth2.client.userinfo.OAuth2UserRequest;
 import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
+import org.springframework.security.oauth2.core.oidc.user.DefaultOidcUser;
+import org.springframework.security.oauth2.core.oidc.user.OidcUser;
 import org.springframework.security.oauth2.core.user.DefaultOAuth2User;
 import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.stereotype.Service;
@@ -154,8 +158,10 @@ public class OAuth2AuthenticationService extends DefaultOAuth2UserService {
      * @param registrationId Provider ID (e.g., "google")
      * @return OAuth2User unchanged (needed for Spring Security flow)
      * @throws OAuth2AuthenticationException if email is null or processing fails
+     *
+     * NOTE: Made package-private (not private) so CustomOidcUserService can access it
      */
-    private OAuth2User processOAuth2User(OAuth2User oauth2User, String registrationId) {
+    OAuth2User processOAuth2User(OAuth2User oauth2User, String registrationId) {
         // STEP 1: Extract user attributes from Google
         Map<String, Object> attributes = oauth2User.getAttributes();
 
