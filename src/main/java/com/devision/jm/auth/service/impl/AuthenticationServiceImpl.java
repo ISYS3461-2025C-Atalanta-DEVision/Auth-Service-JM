@@ -53,6 +53,7 @@ public class AuthenticationServiceImpl implements AuthenticationApi {
     private final PasswordEncoder passwordEncoder;       // BCrypt password hashing
     private final TokenService tokenService;            // JWE token generation/validation
     private final RedisTemplate<String, String> redisTemplate;  // Redis for brute-force tracking
+    private final com.devision.jm.auth.service.EmailService emailService;  // Email sending service
 
     // ==================== COMPANY REGISTRATION (1.1.1 - 1.3.3) ====================
 
@@ -107,8 +108,14 @@ public class AuthenticationServiceImpl implements AuthenticationApi {
         User savedUser = userRepository.save(user);
         log.info("Company registered successfully: {}", savedUser.getId());
 
-        // NOTE: Activation email sending removed (Kafka disabled)
-        log.warn("User registered but activation email NOT sent (email service disabled): {}", savedUser.getEmail());
+        // Send activation email (Requirement 1.1.3)
+        try {
+            emailService.sendActivationEmail(savedUser, activationToken);
+            log.info("Activation email sent successfully to: {}", savedUser.getEmail());
+        } catch (Exception e) {
+            // Don't fail registration if email fails - user can request resend
+            log.error("Failed to send activation email to {}: {}", savedUser.getEmail(), e.getMessage());
+        }
 
         // Convert entity to response DTO (hides sensitive fields like password hash)
         return userMapper.toCompanyProfileResponse(savedUser);
