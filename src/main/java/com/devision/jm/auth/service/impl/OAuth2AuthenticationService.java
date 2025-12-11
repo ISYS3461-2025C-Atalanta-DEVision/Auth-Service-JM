@@ -284,10 +284,9 @@ public class OAuth2AuthenticationService extends DefaultOAuth2UserService {
      * WHAT THIS DOES:
      * 1. Fetch user from database by email
      * 2. Update last login timestamp
-     * 3. Publish LOGIN_SUCCESS event to Kafka
-     * 4. Generate JWT access token (15 minutes validity)
-     * 5. Generate JWT refresh token (7 days validity)
-     * 6. Return tokens to success handler
+     * 3. Generate JWT access token (15 minutes validity)
+     * 4. Generate JWT refresh token (7 days validity)
+     * 5. Return tokens to success handler
      *
      * TOKEN TYPE:
      * Uses standard JWT (NOT JWE) for OAuth2 login.
@@ -303,19 +302,12 @@ public class OAuth2AuthenticationService extends DefaultOAuth2UserService {
      * - ip: Client IP address
      * - device: User agent string
      *
-     * KAFKA EVENT:
-     * Publishes LOGIN_SUCCESS event with:
-     * - userId, email, role
-     * - ipAddress, deviceInfo (for audit trail)
-     * - timestamp
-     *
      * @param email User's email address
      * @param ipAddress Client's IP address (for audit logging)
      * @param deviceInfo User-Agent string (for audit logging)
      * @return TokenInternalDto containing access token, refresh token, and expiry times
      * @throws OAuth2AuthenticationException if user not found (shouldn't happen)
      */
-    @Transactional  // Ensure database operations succeed or roll back together
     public TokenInternalDto generateTokensForOAuth2User(String email, String ipAddress, String deviceInfo) {
         // STEP 1: Fetch user from database
         // User should exist because processOAuth2User() already created/updated them
