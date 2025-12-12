@@ -28,6 +28,8 @@ public class CompanyProfileResponse {
     private String city;
     private String streetAddress;
     private String phoneNumber;
+    private String avatarUrl;
+    private String subscriptionType;
     private String status;
     private LocalDateTime createdAt;
     private LocalDateTime lastLogin;

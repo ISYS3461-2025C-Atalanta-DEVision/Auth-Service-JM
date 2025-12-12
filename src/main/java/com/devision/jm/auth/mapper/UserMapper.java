@@ -55,6 +55,8 @@ public interface UserMapper {
     @Mapping(target = "status", ignore = true)
     @Mapping(target = "authProvider", ignore = true)
     @Mapping(target = "providerId", ignore = true)
+    @Mapping(target = "avatarUrl", ignore = true)
+    @Mapping(target = "subscriptionType", ignore = true)
     @Mapping(target = "failedLoginAttempts", ignore = true)
     @Mapping(target = "lastFailedLogin", ignore = true)
     @Mapping(target = "lockedUntil", ignore = true)
@@ -73,14 +75,14 @@ public interface UserMapper {
      * Convert User entity to Company Profile Response
      * Implements A.2.5: Only necessary data exposed
      */
-    @Mapping(target = "id", expression = "java(user.getId() != null ? user.getId().toString() : null)")
+    @Mapping(target = "id", source = "id")
     @Mapping(target = "status", expression = "java(user.getStatus() != null ? user.getStatus().name() : null)")
     CompanyProfileResponse toCompanyProfileResponse(User user);
 
     /**
      * Convert Internal DTO to Company Profile Response
      */
-    @Mapping(target = "id", expression = "java(dto.getId() != null ? dto.getId().toString() : null)")
+    @Mapping(target = "id", source = "id")
     @Mapping(target = "status", expression = "java(dto.getStatus() != null ? dto.getStatus().name() : null)")
     CompanyProfileResponse internalDtoToCompanyProfileResponse(UserInternalDto dto);
 }

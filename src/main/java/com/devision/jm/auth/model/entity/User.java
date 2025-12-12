@@ -73,6 +73,13 @@ public class User extends BaseEntity {
     @Field("company_name")
     private String companyName;
 
+    @Field("avatar_url")
+    private String avatarUrl;  // Default: NULL
+
+    @Builder.Default
+    @Field("subscription_type")
+    private String subscriptionType = "FREE";  // Default: "FREE" on account creation
+
     // ==================== Account Security ====================
 
     @Builder.Default

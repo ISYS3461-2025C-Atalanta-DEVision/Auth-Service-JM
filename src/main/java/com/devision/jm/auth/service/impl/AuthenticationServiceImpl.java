@@ -97,6 +97,7 @@ public class AuthenticationServiceImpl implements AuthenticationApi {
         user.setStatus(AccountStatus.PENDING_ACTIVATION);    // Must activate via email (1.1.3)
         user.setAuthProvider(AuthProvider.LOCAL);            // Not SSO registration
         user.setFailedLoginAttempts(0);                      // Initialize login attempt counter
+        user.setSubscriptionType("FREE");                    // Default subscription tier
 
         // Generate activation token for email verification (Requirement 1.1.3)
         // Token is a random UUID, expires in 24 hours
