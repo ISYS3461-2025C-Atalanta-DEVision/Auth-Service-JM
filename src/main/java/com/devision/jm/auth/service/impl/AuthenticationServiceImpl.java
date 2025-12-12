@@ -496,10 +496,8 @@ public class AuthenticationServiceImpl implements AuthenticationApi {
     public CompanyProfileResponse getUserProfile(String userId) {
         log.debug("Fetching profile for user: {}", userId);
 
-        // Validate UUID format
-        try {
-            UUID.fromString(userId);
-        } catch (IllegalArgumentException e) {
+        // Validate ObjectId format (MongoDB uses 24-character hex strings)
+        if (userId == null || !userId.matches("^[0-9a-fA-F]{24}$")) {
             log.error("Invalid userId format: {}", userId);
             throw new AuthException("Invalid user ID format", org.springframework.http.HttpStatus.BAD_REQUEST);
         }
