@@ -14,37 +14,18 @@ import java.time.Duration;
 import java.util.Base64;
 
 /**
- * Cookie-Based OAuth2 Authorization Request Repository
+ * OAuth2 Cookie Storage
  *
- * WHY THIS IS NEEDED:
- * Spring Security's default OAuth2 implementation uses HTTP sessions to store
- * the authorization request state between:
- * 1. Initial request to /oauth2/authorization/google
- * 2. Callback from Google to /login/oauth2/code/google
+ * PURPOSE:
+ * Stores OAuth2 state in cookies instead of sessions (we use stateless JWT).
  *
- * PROBLEM:
- * Our Auth Service uses stateless session management (SessionCreationPolicy.STATELESS)
- * for JWT-based authentication. This means no HTTP sessions are created, so the
- * default session-based OAuth2 state storage doesn't work.
- *
- * SOLUTION:
- * This repository stores OAuth2 authorization request in cookies instead of sessions.
- * Cookies are sent back and forth with each request, allowing stateless OAuth2 flow.
- *
- * HOW IT WORKS:
- * 1. User clicks "Sign in with Google" → /oauth2/authorization/google
- * 2. Spring Security creates OAuth2AuthorizationRequest with state parameter
- * 3. THIS REPOSITORY serializes request → Base64 → stores in cookie
- * 4. Browser redirects to Google with state parameter
- * 5. Google authenticates user → redirects to /login/oauth2/code/google with state
- * 6. THIS REPOSITORY reads cookie → deserializes → retrieves authorization request
- * 7. Spring Security validates state matches → processes callback
- *
- * SECURITY:
- * - Uses HttpOnly cookies (JavaScript can't access)
- * - Short expiration (180 seconds = 3 minutes)
- * - State parameter prevents CSRF attacks
- * - Cookies are cleared after use
+ * FLOW:
+ * 1. User clicks "Sign in with Google"
+ * 2. Store OAuth2 request → cookie
+ * 3. Redirect to Google
+ * 4. Google redirects back with code
+ * 5. Read cookie → verify state → create user
+ * 6. Delete cookie
  */
 @Slf4j
 @Component
@@ -58,10 +39,7 @@ public class HttpCookieOAuth2AuthorizationRequestRepository
     private static final int COOKIE_EXPIRE_SECONDS = 180;
 
     /**
-     * Load Authorization Request from Cookie
-     *
-     * Called by Spring Security when processing OAuth2 callback.
-     * Retrieves the authorization request that was stored when user initiated login.
+     * Load OAuth2 request from cookie (called during Google callback)
      */
     @Override
     public OAuth2AuthorizationRequest loadAuthorizationRequest(HttpServletRequest request) {
@@ -73,10 +51,7 @@ public class HttpCookieOAuth2AuthorizationRequestRepository
     }
 
     /**
-     * Save Authorization Request to Cookie
-     *
-     * Called by Spring Security when user initiates OAuth2 login.
-     * Stores the authorization request in a cookie so it can be retrieved during callback.
+     * Save OAuth2 request to cookie (called when user clicks "Sign in with Google")
      */
     @Override
     public void saveAuthorizationRequest(OAuth2AuthorizationRequest authorizationRequest,
@@ -94,10 +69,7 @@ public class HttpCookieOAuth2AuthorizationRequestRepository
     }
 
     /**
-     * Remove Authorization Request (after processing callback)
-     *
-     * Called by Spring Security after OAuth2 callback is processed.
-     * Returns the stored request and deletes the cookie.
+     * Remove OAuth2 request cookie (cleanup after callback processed)
      */
     @Override
     public OAuth2AuthorizationRequest removeAuthorizationRequest(HttpServletRequest request,
@@ -110,9 +82,7 @@ public class HttpCookieOAuth2AuthorizationRequestRepository
         return authorizationRequest;
     }
 
-    /**
-     * Get Cookie by Name
-     */
+    // Helper: Get cookie by name
     private java.util.Optional<Cookie> getCookie(HttpServletRequest request, String name) {
         Cookie[] cookies = request.getCookies();
         if (cookies != null) {
@@ -125,27 +95,14 @@ public class HttpCookieOAuth2AuthorizationRequestRepository
         return java.util.Optional.empty();
     }
 
-    /**
-     * Add Cookie to Response
-     */
+    // Helper: Add cookie to response
     private void addCookie(HttpServletResponse response, String name, String value, int maxAge) {
-        // Use ResponseCookie to set SameSite attribute
-        // CRITICAL: SameSite=None is required for cross-site OAuth2 requests
-        // When browser makes OAuth2 request through API Gateway (api-gateway-khhr.onrender.com)
-        // and callback comes back, the cookie must be sent even though it's a cross-site request
+        // SameSite=None required for cross-domain OAuth2 (API Gateway → Auth Service)
         ResponseCookie cookie = ResponseCookie.from(name, value)
-                // Set path to /auth-service/ to match the API Gateway routing
-                // This ensures cookie is sent with OAuth2 requests through the gateway
-                .path("/auth-service/")
-                // HttpOnly prevents JavaScript access (XSS protection)
-                .httpOnly(true)
-                // Secure ensures cookie is only sent over HTTPS
-                .secure(true)
-                // SameSite=None is required for cross-domain OAuth2 callback
-                // When Google redirects back to /auth-service/login/oauth2/code/google
-                // the browser needs to send the cookie even though it's a cross-site request
-                .sameSite("None")
-                // Cookie expiration
+                .path("/auth-service/")  // Match API Gateway routing
+                .httpOnly(true)           // Prevent JavaScript access
+                .secure(true)             // HTTPS only
+                .sameSite("None")         // Allow cross-site requests
                 .maxAge(Duration.ofSeconds(maxAge))
                 .build();
 
@@ -154,28 +111,23 @@ public class HttpCookieOAuth2AuthorizationRequestRepository
         response.addHeader("Set-Cookie", cookie.toString());
     }
 
-    /**
-     * Remove Authorization Request Cookies
-     */
+    // Helper: Delete OAuth2 cookies
     private void removeAuthorizationRequestCookies(HttpServletRequest request, HttpServletResponse response) {
         getCookie(request, OAUTH2_AUTHORIZATION_REQUEST_COOKIE_NAME)
                 .ifPresent(cookie -> {
-                    // Create cookie with maxAge=0 to delete it
                     ResponseCookie deleteCookie = ResponseCookie.from(OAUTH2_AUTHORIZATION_REQUEST_COOKIE_NAME, "")
-                            .path("/auth-service/")  // Must match the path set in addCookie
+                            .path("/auth-service/")
                             .httpOnly(true)
                             .secure(true)
-                            .sameSite("None")  // Must match original cookie
-                            .maxAge(0)  // Expire immediately
+                            .sameSite("None")
+                            .maxAge(0)  // Delete cookie
                             .build();
 
                     response.addHeader("Set-Cookie", deleteCookie.toString());
                 });
     }
 
-    /**
-     * Serialize OAuth2AuthorizationRequest to Base64 String
-     */
+    // Helper: Serialize request to Base64
     private String serialize(OAuth2AuthorizationRequest authorizationRequest) {
         try (ByteArrayOutputStream baos = new ByteArrayOutputStream();
              ObjectOutputStream oos = new ObjectOutputStream(baos)) {
@@ -187,9 +139,7 @@ public class HttpCookieOAuth2AuthorizationRequestRepository
         }
     }
 
-    /**
-     * Deserialize Base64 String to OAuth2AuthorizationRequest
-     */
+    // Helper: Deserialize Base64 to request
     private OAuth2AuthorizationRequest deserialize(Cookie cookie) {
         try (ByteArrayInputStream bais = new ByteArrayInputStream(
                 Base64.getUrlDecoder().decode(cookie.getValue()));
