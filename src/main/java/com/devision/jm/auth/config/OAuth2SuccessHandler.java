@@ -37,7 +37,7 @@ import java.util.Map;
  *
  * WHAT IT DOES:
  * 1. Extracts user email from OAuth2User object
- * 2. Generates JWT access token and refresh token
+ * 2. Generates JWE access token and refresh token
  * 3. Publishes LOGIN_SUCCESS event to Kafka
  * 4. Redirects browser to frontend with tokens in URL parameters
  *
@@ -46,7 +46,7 @@ import java.util.Map;
  * → OAuth2AuthenticationService → THIS HANDLER → Frontend Redirect
  *
  * TOKEN TYPE:
- * Uses standard JWT (NOT JWE) for OAuth2 login (Req 2.3.1)
+ * Uses standard JWE (NOT JWE) for OAuth2 login (Req 2.3.1)
  * JWE is only required for email/password login (Req 2.2.1)
  *
  * CONFIGURATION:
@@ -58,7 +58,7 @@ import java.util.Map;
 @RequiredArgsConstructor  // Lombok: generates constructor for final fields
 public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler {
 
-    // Service that generates JWT tokens and publishes events
+    // Service that generates JWE tokens and publishes events
     private final OAuth2AuthenticationService oauth2AuthenticationService;
 
     // Jackson ObjectMapper for converting objects to JSON (used in API response)
@@ -83,7 +83,7 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
      * EXECUTION FLOW:
      * 1. Extract user email from OAuth2User object (from Google)
      * 2. Get client's IP address and device info for logging
-     * 3. Generate JWT access token and refresh token
+     * 3. Generate JWE access token and refresh token
      * 4. Publish LOGIN_SUCCESS event to Kafka (for audit trail)
      * 5. Redirect browser to frontend with tokens OR return JSON response
      *
@@ -132,7 +132,7 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
 
             log.debug("Generating tokens for userId: {}, IP: {}, Device: {}", userId, ipAddress, deviceInfo);
 
-            // STEP 3: Generate JWT tokens (NOT JWE for OAuth2)
+            // STEP 3: Generate JWE tokens (NOT JWE for OAuth2)
             // This method:
             // - Fetches user by ID (no database transaction timing issues)
             // - Generates access token (15 minutes validity)
@@ -199,8 +199,8 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
                 "success", true,
                 "message", "OAuth2 authentication successful",
                 "data", Map.of(
-                        "accessToken", tokens.getAccessToken(),    // JWT access token
-                        "refreshToken", tokens.getRefreshToken(),  // JWT refresh token
+                        "accessToken", tokens.getAccessToken(),    // JWE access token
+                        "refreshToken", tokens.getRefreshToken(),  // JWE refresh token
                         "tokenType", "Bearer",                     // Standard bearer token type
                         // Calculate seconds until access token expires
                         "expiresIn", Duration.between(LocalDateTime.now(),

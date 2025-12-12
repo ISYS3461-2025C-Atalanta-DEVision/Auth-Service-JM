@@ -13,9 +13,9 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 
 /**
- * JWT Configuration
+ * JWE Configuration
  *
- * Centralized JWT configuration for token generation and validation.
+ * Centralized JWE configuration for token generation and validation.
  *
  * Implements:
  * - JWS signing key for token integrity (2.1.2)
@@ -24,24 +24,24 @@ import java.security.NoSuchAlgorithmException;
 @Slf4j
 @Configuration
 @Getter
-public class JwtConfig {
+public class JweConfig {
 
     // Secret for signing (JWS) - used for token integrity
-    @Value("${jwt.secret:YourSuperSecretKeyForJWTSigningMustBeAtLeast256BitsLong123456789}")
+    @Value("${jwe.secret:YourSuperSecretKeyForJWESigningMustBeAtLeast256BitsLong123456789}")
     private String secret;
 
     // Secret for encryption (JWE) - used for token confidentiality (2.2.1)
     // If not provided, derives from signing secret
-    @Value("${jwt.encryption-secret:}")
+    @Value("${jwe.encryption-secret:}")
     private String encryptionSecret;
 
-    @Value("${jwt.access-token.expiration:3600000}")  // 1 hour
+    @Value("${jwe.access-token.expiration:3600000}")  // 1 hour
     private long accessTokenExpiration;
 
-    @Value("${jwt.refresh-token.expiration:604800000}")  // 7 days
+    @Value("${jwe.refresh-token.expiration:604800000}")  // 7 days
     private long refreshTokenExpiration;
 
-    @Value("${jwt.issuer:devision-jm-auth}")
+    @Value("${jwe.issuer:devision-jm-auth}")
     private String issuer;
 
     /**

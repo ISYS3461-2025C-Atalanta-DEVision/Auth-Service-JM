@@ -84,8 +84,8 @@ internal:
   api-key-validation:
     enabled: ${INTERNAL_API_KEY_VALIDATION}
 
-# JWT Configuration (2.1.2)
-jwt:
+# JWE Configuration (2.1.2)
+jwe:
   secret: ${JWT_SECRET}
   access-token-expiration: 900000      # 15 minutes in milliseconds
   refresh-token-expiration: 604800000  # 7 days in milliseconds

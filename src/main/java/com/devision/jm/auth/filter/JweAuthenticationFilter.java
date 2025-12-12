@@ -1,6 +1,6 @@
 package com.devision.jm.auth.filter;
 
-import com.devision.jm.auth.config.JwtConfig;
+import com.devision.jm.auth.config.JweConfig;
 import com.nimbusds.jose.JOSEException;
 import com.nimbusds.jose.crypto.DirectDecrypter;
 import com.nimbusds.jwt.EncryptedJWT;
@@ -27,7 +27,7 @@ import java.util.Date;
 import java.util.List;
 
 /**
- * JWT Authentication Filter
+ * JWE Authentication Filter
  *
  * Intercepts requests to validate JWE (encrypted) tokens.
  * Organized separately from tier structure (A.1.3).
@@ -39,12 +39,12 @@ import java.util.List;
 @Slf4j
 @Component
 @RequiredArgsConstructor
-public class JwtAuthenticationFilter extends OncePerRequestFilter {
+public class JweAuthenticationFilter extends OncePerRequestFilter {
 
     private static final String BEARER_PREFIX = "Bearer ";
     private static final String REVOKED_TOKEN_PREFIX = "revoked:";
 
-    private final JwtConfig jwtConfig;
+    private final JweConfig jweConfig;
     private final RedisTemplate<String, String> redisTemplate;
 
     @Override
@@ -52,15 +52,15 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                                     HttpServletResponse response,
                                     FilterChain filterChain) throws ServletException, IOException {
         try {
-            String jwt = extractJwtFromRequest(request);
+            String jwe = extractJweFromRequest(request);
 
-            if (StringUtils.hasText(jwt)) {
+            if (StringUtils.hasText(jwe)) {
                 // Decrypt and validate JWE token (2.2.1)
-                JWTClaimsSet claims = decryptAndValidateToken(jwt);
+                JWTClaimsSet claims = decryptAndValidateToken(jwe);
 
                 if (claims != null) {
                     // Check if token is revoked in Redis (2.3.2)
-                    if (isTokenRevoked(jwt)) {
+                    if (isTokenRevoked(jwe)) {
                         log.warn("Attempted use of revoked token");
                         response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
                         response.setContentType("application/json");
@@ -108,9 +108,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     }
 
     /**
-     * Extract JWT token from Authorization header
+     * Extract JWE token from Authorization header
      */
-    private String extractJwtFromRequest(HttpServletRequest request) {
+    private String extractJweFromRequest(HttpServletRequest request) {
         String bearerToken = request.getHeader(HttpHeaders.AUTHORIZATION);
         if (StringUtils.hasText(bearerToken) && bearerToken.startsWith(BEARER_PREFIX)) {
             return bearerToken.substring(BEARER_PREFIX.length());
@@ -128,7 +128,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             EncryptedJWT encryptedJWT = EncryptedJWT.parse(token);
 
             // Decrypt with AES-256 key
-            DirectDecrypter decrypter = new DirectDecrypter(jwtConfig.getEncryptionKey());
+            DirectDecrypter decrypter = new DirectDecrypter(jweConfig.getEncryptionKey());
             encryptedJWT.decrypt(decrypter);
 
             // Return decrypted claims

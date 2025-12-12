@@ -17,7 +17,16 @@ import java.util.Base64;
  * OAuth2 Cookie Storage
  *
  * PURPOSE:
- * Stores OAuth2 state in cookies instead of sessions (we use stateless JWT).
+ * Stores OAuth2 state in cookies instead of sessions (we use stateless JWE).
+ * what is stateless right?
+ * Stateful (Session-based):
+    Server stores: sessions["abc123"] = {userId: "123", email: "user@example.com"}
+    Client sends: sessionId=abc123
+    Server looks up: "Who is abc123?" → Finds user info
+    Stateless (JWE):
+    Token contains: {userId: "123", email: "user@example.com", role: "COMPANY"}
+    Client sends: entire token
+    Server decrypts token → All info is already there, no lookup needed!
  *
  * FLOW:
  * 1. User clicks "Sign in with Google"

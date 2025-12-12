@@ -23,4 +23,6 @@ public interface AuthenticationApi {
     void changePassword(String userId, PasswordChangeRequest request);
 
     boolean validateToken(String token);
+
+    CompanyProfileResponse getUserProfile(String userId);
 }

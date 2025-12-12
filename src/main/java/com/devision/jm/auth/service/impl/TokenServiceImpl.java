@@ -2,7 +2,7 @@ package com.devision.jm.auth.service.impl;
 
 import com.devision.jm.auth.api.internal.dto.TokenInternalDto;
 import com.devision.jm.auth.api.internal.interfaces.TokenService;
-import com.devision.jm.auth.config.JwtConfig;
+import com.devision.jm.auth.config.JweConfig;
 import com.devision.jm.auth.exception.InvalidTokenException;
 import com.devision.jm.auth.exception.TokenExpiredException;
 import com.devision.jm.auth.model.entity.RefreshToken;
@@ -48,7 +48,7 @@ public class TokenServiceImpl implements TokenService {
 
     private static final String REVOKED_TOKEN_PREFIX = "revoked:";
 
-    private final JwtConfig jwtConfig;
+    private final JweConfig jweConfig;
     private final RefreshTokenRepository refreshTokenRepository;
     private final UserRepository userRepository;
     private final RedisTemplate<String, String> redisTemplate;
@@ -63,12 +63,12 @@ public class TokenServiceImpl implements TokenService {
         LocalDateTime now = LocalDateTime.now();
 
         // Generate encrypted JWE access token (2.2.1)
-        Date accessTokenExpiry = new Date(System.currentTimeMillis() + jwtConfig.getAccessTokenExpiration());
+        Date accessTokenExpiry = new Date(System.currentTimeMillis() + jweConfig.getAccessTokenExpiration());
         String accessToken = generateJweToken(userId, email, role, accessTokenExpiry);
 
         // Generate refresh token (random UUID, stored in database)
         String refreshTokenValue = UUID.randomUUID().toString();
-        LocalDateTime refreshTokenExpiry = now.plusSeconds(jwtConfig.getRefreshTokenExpirationSeconds());
+        LocalDateTime refreshTokenExpiry = now.plusSeconds(jweConfig.getRefreshTokenExpirationSeconds());
 
         // Get user entity for refresh token
         User user = userRepository.findById(userId)
@@ -90,7 +90,7 @@ public class TokenServiceImpl implements TokenService {
         return TokenInternalDto.builder()
                 .accessToken(accessToken)
                 .refreshToken(refreshTokenValue)
-                .accessTokenExpiry(LocalDateTime.now().plusSeconds(jwtConfig.getAccessTokenExpirationSeconds()))
+                .accessTokenExpiry(LocalDateTime.now().plusSeconds(jweConfig.getAccessTokenExpirationSeconds()))
                 .refreshTokenExpiry(refreshTokenExpiry)
                 .userId(userId)
                 .userEmail(email)
@@ -104,13 +104,13 @@ public class TokenServiceImpl implements TokenService {
      */
     private String generateJweToken(String userId, String email, String role, Date expiry) {
         try {
-            // Build JWT claims (payload)
+            // Build JWE claims (payload)
             JWTClaimsSet claimsSet = new JWTClaimsSet.Builder()
                     .subject(email)
                     .claim("userId", userId)
                     .claim("email", email)
                     .claim("role", role)
-                    .issuer(jwtConfig.getIssuer())
+                    .issuer(jweConfig.getIssuer())
                     .issueTime(new Date())
                     .expirationTime(expiry)
                     .jwtID(UUID.randomUUID().toString())  // Unique token ID for revocation
@@ -121,11 +121,11 @@ public class TokenServiceImpl implements TokenService {
                     .contentType("JWT")
                     .build();
 
-            // Create encrypted JWT
+            // Create encrypted JWE
             EncryptedJWT encryptedJWT = new EncryptedJWT(header, claimsSet);
 
             // Encrypt with AES-256 key
-            DirectEncrypter encrypter = new DirectEncrypter(jwtConfig.getEncryptionKey());
+            DirectEncrypter encrypter = new DirectEncrypter(jweConfig.getEncryptionKey());
             encryptedJWT.encrypt(encrypter);
 
             // Serialize to compact form
@@ -169,7 +169,7 @@ public class TokenServiceImpl implements TokenService {
         EncryptedJWT encryptedJWT = EncryptedJWT.parse(token);
 
         // Decrypt with AES-256 key
-        DirectDecrypter decrypter = new DirectDecrypter(jwtConfig.getEncryptionKey());
+        DirectDecrypter decrypter = new DirectDecrypter(jweConfig.getEncryptionKey());
         encryptedJWT.decrypt(decrypter);
 
         // Get claims

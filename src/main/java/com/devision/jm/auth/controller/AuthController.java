@@ -45,7 +45,7 @@ public class AuthController {
     }
 
     // ==================== LOGIN ====================
-    // POST /api/auth/login - Authenticate user and return JWT tokens
+    // POST /api/auth/login - Authenticate user and return JWE tokens
     @PostMapping("/login")
     public ResponseEntity<LoginResponse> login(
             @Valid @RequestBody LoginRequest request,
@@ -120,7 +120,7 @@ public class AuthController {
     }
 
     // ==================== TOKEN VALIDATION ====================
-    // GET /api/auth/validate - Validate JWT token (used by API Gateway)
+    // GET /api/auth/validate - Validate JWE token (used by API Gateway)
     @GetMapping("/validate")
     public ResponseEntity<Boolean> validateToken(
             @RequestHeader("Authorization") String authHeader) {
@@ -155,6 +155,18 @@ public class AuthController {
         // Currently uses same logic as regular login
         // Can be extended for admin-specific validation if needed
         LoginResponse response = authenticationService.login(request, ipAddress);
+        return ResponseEntity.ok(response);
+    }
+
+    // ==================== USER PROFILE ====================
+    // GET /api/auth/profile - Get authenticated user's profile
+    @GetMapping("/profile")
+    public ResponseEntity<CompanyProfileResponse> getProfile(
+            // userId is set by JweAuthenticationFilter after validating the token
+            @RequestAttribute("userId") String userId) {
+        log.info("Profile request for user: {}", userId);
+        // Fetch user profile from database
+        CompanyProfileResponse response = authenticationService.getUserProfile(userId);
         return ResponseEntity.ok(response);
     }
 

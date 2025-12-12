@@ -2,7 +2,7 @@
 
 ## Overview
 
-Authentication microservice handling user login, registration, and JWT token management.
+Authentication microservice handling user login, registration, and JWE token management.
 
 ---
 
@@ -279,7 +279,7 @@ All errors return:
 | `REDIS_PORT` | `6379` |
 | `REDIS_PASSWORD` | `your-redis-password` |
 | `REDIS_SSL_ENABLED` | `true` (for Upstash) |
-| `JWT_SECRET` | `your-256-bit-secret` |
+| `JWE_SECRET` | `your-256-bit-secret` |
 | `MONGODB_URI` | `mongodb+srv://user:pass@cluster.mongodb.net/dbname` |
 | `INTERNAL_API_KEY` | `your-internal-api-key` |
 | `SPRING_PROFILES_ACTIVE` | `prod` |

@@ -1,7 +1,7 @@
 package com.devision.jm.auth.config;
 
 import com.devision.jm.auth.filter.InternalApiKeyValidationFilter;
-import com.devision.jm.auth.filter.JwtAuthenticationFilter;
+import com.devision.jm.auth.filter.JweAuthenticationFilter;
 import com.devision.jm.auth.service.impl.CustomOidcUserService;
 import com.devision.jm.auth.service.impl.OAuth2AuthenticationService;
 import lombok.RequiredArgsConstructor;
@@ -24,16 +24,16 @@ import org.springframework.security.web.context.SecurityContextHolderFilter;
  * Security Configuration - Spring Security Setup
  *
  * OVERVIEW:
- * This class configures Spring Security for both traditional JWT authentication
+ * This class configures Spring Security for both traditional JWE authentication
  * and Google OAuth2 SSO (Single Sign-On). It defines:
  * 1. Which endpoints are public vs protected
  * 2. How OAuth2 login flow works (automatic endpoint creation)
- * 3. Filter chain for JWT validation
+ * 3. Filter chain for JWE validation
  * 4. Stateless session management (no server-side sessions)
  *
  * AUTHENTICATION METHODS SUPPORTED:
- * - Email/Password Login: JWT with JWE encryption (Req 2.2.1)
- * - Google OAuth2 SSO: Standard JWT tokens (Req 2.3.1)
+ * - Email/Password Login: JWE with JWE encryption (Req 2.2.1)
+ * - Google OAuth2 SSO: Standard JWE tokens (Req 2.3.1)
  * - Admin Login: Special admin credentials
  *
  * KEY SPRING SECURITY CONCEPTS:
@@ -47,8 +47,8 @@ import org.springframework.security.web.context.SecurityContextHolderFilter;
 @RequiredArgsConstructor  // Lombok: generates constructor for final fields (dependency injection)
 public class SecurityConfig {
 
-    // Filter that validates JWT tokens from Authorization header (email/password login)
-    private final JwtAuthenticationFilter jwtAuthenticationFilter;
+    // Filter that validates JWE tokens from Authorization header (email/password login)
+    private final JweAuthenticationFilter jweAuthenticationFilter;
 
     // Filter that validates X-Internal-API-Key header (requests from API Gateway)
     private final InternalApiKeyValidationFilter internalApiKeyValidationFilter;
@@ -75,7 +75,7 @@ public class SecurityConfig {
      *
      * EXECUTION ORDER:
      * 1. Request arrives at Auth Service
-     * 2. Filters process request (InternalApiKeyValidationFilter → JwtAuthenticationFilter)
+     * 2. Filters process request (InternalApiKeyValidationFilter → JweAuthenticationFilter)
      * 3. Authorization rules check if endpoint is public or requires authentication
      * 4. If OAuth2 endpoint, Spring Security handles OAuth2 flow automatically
      * 5. Request reaches controller (if authorized)
@@ -94,7 +94,7 @@ public class SecurityConfig {
 
                 // ========== CSRF Protection ==========
                 // Disable CSRF for stateless API
-                // CSRF tokens not needed because we use JWT tokens (not cookies)
+                // CSRF tokens not needed because we use JWE tokens (not cookies)
                 // Stateless = each request contains full auth info (JWT), no session
                 .csrf(AbstractHttpConfigurer::disable)
 
@@ -106,7 +106,7 @@ public class SecurityConfig {
                 // ========== Session Management ==========
                 // Stateless session management - NO server-side sessions
                 // Why stateless? Microservices should be stateless for horizontal scaling
-                // Each request contains JWT token, server doesn't store session data
+                // Each request contains JWE token, server doesn't store session data
                 // Benefits: Multiple instances can handle any request, easier load balancing
                 .sessionManagement(session ->
                         session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
@@ -123,7 +123,7 @@ public class SecurityConfig {
                                 "/api/auth/login",            // Email/password login (Req 2.2.1)
                                 "/api/auth/refresh",          // Refresh access token (Req 2.2.2)
                                 "/api/auth/activate/**",      // Email activation (Req 1.1.3)
-                                "/api/auth/validate",         // Validate JWT token (internal)
+                                "/api/auth/validate",         // Validate JWE token (internal)
                                 "/api/auth/countries",        // Get countries list
                                 "/api/auth/admin/login",      // Admin login
 
@@ -136,14 +136,14 @@ public class SecurityConfig {
 
                                 // Actuator endpoints (monitoring, health checks)
                                 "/actuator/**"
-                        ).permitAll()  // All above endpoints are PUBLIC (no JWT required)
+                        ).permitAll()  // All above endpoints are PUBLIC (no JWE required)
 
                         // ADMIN ENDPOINTS - Require ADMIN role
-                        // User must have JWT token with role="ROLE_ADMIN"
+                        // User must have JWE token with role="ROLE_ADMIN"
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
 
                         // ALL OTHER ENDPOINTS - Require authentication
-                        // User must have valid JWT token in Authorization header
+                        // User must have valid JWE token in Authorization header
                         .anyRequest().authenticated()
                 )
 
@@ -168,7 +168,7 @@ public class SecurityConfig {
                 .oauth2Login(oauth2 -> oauth2
                         // Cookie-based authorization request repository (for stateless sessions)
                         // Stores OAuth2 state in cookies instead of HTTP sessions
-                        // Required because we use SessionCreationPolicy.STATELESS for JWT auth
+                        // Required because we use SessionCreationPolicy.STATELESS for JWE auth
                         // See: HttpCookieOAuth2AuthorizationRequestRepository
                         .authorizationEndpoint(authorization -> authorization
                                 .authorizationRequestRepository(cookieAuthorizationRequestRepository))
@@ -184,7 +184,7 @@ public class SecurityConfig {
                                 // See: CustomOidcUserService.loadUser()
                                 .oidcUserService(customOidcUserService))
 
-                        // Custom success handler to generate JWT tokens and redirect
+                        // Custom success handler to generate JWE tokens and redirect
                         // After authentication succeeds, this handler is called
                         // YOUR CODE: Generate access/refresh tokens, redirect to frontend with tokens
                         // See: OAuth2SuccessHandler.onAuthenticationSuccess()
@@ -198,17 +198,17 @@ public class SecurityConfig {
 
                 // ========== Filter Chain Configuration ==========
                 // Filters process requests BEFORE they reach controllers
-                // Execution order: InternalApiKeyValidationFilter → JwtAuthenticationFilter → Controllers
+                // Execution order: InternalApiKeyValidationFilter → JweAuthenticationFilter → Controllers
 
                 // Add Internal API Key filter FIRST (validates X-Internal-API-Key header)
                 // Validates requests coming from API Gateway to ensure they're legitimate
                 // Position: Before SecurityContextHolderFilter (very early in filter chain)
                 .addFilterBefore(internalApiKeyValidationFilter, SecurityContextHolderFilter.class)
 
-                // Add JWT authentication filter SECOND (validates Authorization: Bearer <token>)
-                // Extracts JWT from Authorization header, validates it, sets SecurityContext
+                // Add JWE authentication filter SECOND (validates Authorization: Bearer <token>)
+                // Extracts JWE from Authorization header, validates it, sets SecurityContext
                 // Position: Before UsernamePasswordAuthenticationFilter
-                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+                .addFilterBefore(jweAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
         // Build and return the configured SecurityFilterChain
         return http.build();

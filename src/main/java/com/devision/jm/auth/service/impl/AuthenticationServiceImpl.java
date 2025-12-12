@@ -211,20 +211,13 @@ public class AuthenticationServiceImpl implements AuthenticationApi {
 
         // Publish LOGIN_SUCCESS event for audit logging
 
-        // ===== STEP 8: Build response =====
+        // ===== STEP 8: Build response (tokens only, no user info) =====
         LoginResponse response = LoginResponse.builder()
                 .accessToken(tokens.getAccessToken())      // JWE encrypted token
                 .refreshToken(tokens.getRefreshToken())    // UUID for token rotation
                 .tokenType("Bearer")                       // Standard OAuth2 token type
                 .expiresIn(Duration.between(LocalDateTime.now(), tokens.getAccessTokenExpiry()).getSeconds())
                 .refreshExpiresIn(Duration.between(LocalDateTime.now(), tokens.getRefreshTokenExpiry()).getSeconds())
-                .user(LoginResponse.UserInfo.builder()
-                        .id(user.getId().toString())
-                        .email(user.getEmail())
-                        .role(user.getRole().name())
-                        .companyName(user.getCompanyName())
-                        .country(user.getCountry())
-                        .build())
                 .build();
 
         log.info("Login successful for user: {}", user.getEmail());
@@ -269,7 +262,7 @@ public class AuthenticationServiceImpl implements AuthenticationApi {
      * Revokes both access token (via Redis blacklist) and refresh token (via database).
      * This ensures tokens cannot be used even if they haven't expired.
      *
-     * @param accessToken JWT access token to revoke (added to Redis blacklist)
+     * @param accessToken JWE access token to revoke (added to Redis blacklist)
      * @param refreshToken Refresh token to revoke (marked invalid in database)
      */
     @Override
@@ -489,6 +482,34 @@ public class AuthenticationServiceImpl implements AuthenticationApi {
         }
 
         userRepository.save(user);
+    }
+
+    /**
+     * Get user profile by userId
+     * Used by /api/auth/profile endpoint
+     *
+     * @param userId User ID from JWE token
+     * @return User profile response
+     */
+    @Override
+    @Transactional(readOnly = true)
+    public CompanyProfileResponse getUserProfile(String userId) {
+        log.debug("Fetching profile for user: {}", userId);
+
+        // Validate UUID format
+        try {
+            UUID.fromString(userId);
+        } catch (IllegalArgumentException e) {
+            log.error("Invalid userId format: {}", userId);
+            throw new AuthException("Invalid user ID format", org.springframework.http.HttpStatus.BAD_REQUEST);
+        }
+
+        // Fetch user from database (MongoDB uses String IDs)
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new AuthException("User not found with ID: " + userId, org.springframework.http.HttpStatus.NOT_FOUND));
+
+        // Convert to profile response
+        return userMapper.toCompanyProfileResponse(user);
     }
 
 }

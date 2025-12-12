@@ -7,7 +7,7 @@ import java.util.Optional;
 /**
  * Token Service Interface (Internal)
  *
- * Internal API for JWT token operations.
+ * Internal API for JWE token operations.
  * Handles token generation, validation, and revocation.
  */
 public interface TokenService {

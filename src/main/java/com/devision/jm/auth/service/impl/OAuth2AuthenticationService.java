@@ -40,7 +40,7 @@ import java.util.*;
  * 2. Spring Security exchanges authorization code for access token
  * 3. Spring Security fetches user info from Google
  * 4. → THIS SERVICE RUNS (loadUser method)
- * 5. OAuth2SuccessHandler runs (generates JWT tokens)
+ * 5. OAuth2SuccessHandler runs (generates JWE tokens)
  *
  * KEY RESPONSIBILITIES:
  * 1. Create new user account if first-time Google login (Req 1.3.1)
@@ -48,7 +48,7 @@ import java.util.*;
  * 3. Auto-activate SSO users (no email verification needed)
  * 4. Update last login timestamp
  * 5. Publish USER_REGISTERED event to Kafka
- * 6. Generate JWT tokens for OAuth2 success handler
+ * 6. Generate JWE tokens for OAuth2 success handler
  *
  * INHERITANCE:
  * Extends DefaultOAuth2UserService which:
@@ -73,7 +73,7 @@ public class OAuth2AuthenticationService extends DefaultOAuth2UserService {
     // Repository for database operations on User entity
     private final UserRepository userRepository;
 
-    // Service for generating JWT access and refresh tokens
+    // Service for generating JWE access and refresh tokens
     private final TokenService tokenService;
 
     /**
@@ -328,7 +328,7 @@ public class OAuth2AuthenticationService extends DefaultOAuth2UserService {
     }
 
     /**
-     * Generate JWT Tokens for OAuth2 User
+     * Generate JWE Tokens for OAuth2 User
      *
      * WHEN THIS IS CALLED:
      * Called by OAuth2SuccessHandler after successful OAuth2 authentication.
@@ -336,16 +336,16 @@ public class OAuth2AuthenticationService extends DefaultOAuth2UserService {
      *
      * WHAT THIS DOES:
      * 1. Fetch user from database by userId (passed from OAuth2User attributes)
-     * 2. Generate JWT access token (15 minutes validity)
-     * 3. Generate JWT refresh token (7 days validity)
+     * 2. Generate JWE access token (15 minutes validity)
+     * 3. Generate JWE refresh token (7 days validity)
      * 4. Return tokens to success handler
      *
      * TOKEN TYPE:
-     * Uses standard JWT (NOT JWE) for OAuth2 login.
+     * Uses standard JWE (NOT JWE) for OAuth2 login.
      * JWE encryption is only required for email/password login (Req 2.2.1).
      *
      * TOKEN CONTENTS:
-     * Access Token JWT Claims:
+     * Access Token JWE Claims:
      * - sub: User ID
      * - email: User's email
      * - role: User's role (COMPANY or ADMIN)
@@ -366,8 +366,8 @@ public class OAuth2AuthenticationService extends DefaultOAuth2UserService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new OAuth2AuthenticationException("User not found after OAuth2 authentication"));
 
-        // STEP 2: Generate JWT tokens (access + refresh)
-        // TokenService creates signed JWT tokens with user claims
+        // STEP 2: Generate JWE tokens (access + refresh)
+        // TokenService creates signed JWE tokens with user claims
         return tokenService.generateTokens(
                 user.getId(),           // Subject (sub claim)
                 user.getEmail(),        // Email claim

@@ -9,7 +9,7 @@ import org.springframework.cloud.client.discovery.EnableDiscoveryClient;
  *
  * Microservice responsible for:
  * - Company Registration (1.1.1 - 1.3.3)
- * - Company Login with JWT (2.1.1 - 2.3.3)
+ * - Company Login with JWE (2.1.1 - 2.3.3)
  * - Admin Authentication
  * - Token management (generation, validation, refresh, revocation)
  * - Password management (reset, change with notifications)

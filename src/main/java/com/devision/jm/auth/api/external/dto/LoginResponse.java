@@ -20,7 +20,7 @@ import lombok.NoArgsConstructor;
 public class LoginResponse {
 
     /**
-     * JWT Access Token (JWE encrypted - 2.2.1 Ultimo)
+     * JWE Access Token (JWE encrypted - 2.2.1 Ultimo)
      * Payload is encrypted and cannot be read by unauthorized parties.
      * Frontend should use expiresIn field to track expiration.
      */
@@ -46,21 +46,4 @@ public class LoginResponse {
      * Refresh token expiration time in seconds
      */
     private Long refreshExpiresIn;
-
-    /**
-     * User information
-     */
-    private UserInfo user;
-
-    @Data
-    @Builder
-    @NoArgsConstructor
-    @AllArgsConstructor
-    public static class UserInfo {
-        private String id;
-        private String email;
-        private String role;
-        private String companyName;
-        private String country;
-    }
 }
