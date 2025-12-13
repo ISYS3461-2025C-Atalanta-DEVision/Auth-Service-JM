@@ -1,11 +1,13 @@
-package com.devision.jm.auth.service;
+package com.devision.jm.auth.api.internal.interfaces;
 
 import com.devision.jm.auth.model.entity.User;
 
 /**
- * Email Service Interface
+ * Email Service Interface (Internal API)
  *
  * Internal service for sending emails.
+ * NOT accessible by other modules - only used within auth-core.
+ *
  * Implements:
  * - 1.1.3: Account activation email
  * - Password reset/change emails

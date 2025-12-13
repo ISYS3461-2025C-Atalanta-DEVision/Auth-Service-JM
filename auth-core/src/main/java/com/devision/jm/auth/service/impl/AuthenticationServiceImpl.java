@@ -3,6 +3,7 @@ package com.devision.jm.auth.service.impl;
 import com.devision.jm.auth.api.external.dto.*;
 import com.devision.jm.auth.api.external.interfaces.AuthenticationApi;
 import com.devision.jm.auth.api.internal.dto.TokenInternalDto;
+import com.devision.jm.auth.api.internal.interfaces.EmailService;
 import com.devision.jm.auth.api.internal.interfaces.TokenService;
 import com.devision.jm.auth.exception.*;
 import com.devision.jm.auth.mapper.UserMapper;
@@ -53,7 +54,7 @@ public class AuthenticationServiceImpl implements AuthenticationApi {
     private final PasswordEncoder passwordEncoder;       // BCrypt password hashing
     private final TokenService tokenService;            // JWE token generation/validation
     private final RedisTemplate<String, String> redisTemplate;  // Redis for brute-force tracking
-    private final com.devision.jm.auth.service.EmailService emailService;  // Email sending service
+    private final EmailService emailService;  // Email sending service
 
     // ==================== COMPANY REGISTRATION (1.1.1 - 1.3.3) ====================
 

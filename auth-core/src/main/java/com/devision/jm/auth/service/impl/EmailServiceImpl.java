@@ -1,7 +1,7 @@
 package com.devision.jm.auth.service.impl;
 
 import com.devision.jm.auth.model.entity.User;
-import com.devision.jm.auth.service.EmailService;
+import com.devision.jm.auth.api.internal.interfaces.EmailService;
 import jakarta.mail.MessagingException;
 import jakarta.mail.internet.MimeMessage;
 import lombok.RequiredArgsConstructor;
