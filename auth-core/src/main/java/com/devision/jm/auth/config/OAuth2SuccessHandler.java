@@ -264,6 +264,9 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
                 // Calculate seconds until token expires (frontend uses this for countdown)
                 .queryParam("expires_in", Duration.between(LocalDateTime.now(),
                         tokens.getAccessTokenExpiry()).getSeconds())
+                // Calculate seconds until refresh token expires
+                .queryParam("refresh_expires_in", Duration.between(LocalDateTime.now(),
+                        tokens.getRefreshTokenExpiry()).getSeconds())
                 .build().toUriString();
 
         log.debug("Redirecting to frontend: {}", frontendUrl + "/oauth2/callback");
