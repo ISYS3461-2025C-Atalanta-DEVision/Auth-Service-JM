@@ -4,13 +4,17 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
+    <!-- Use Spring Boot parent directly for standalone deployment -->
     <parent>
-        <groupId>com.devision.jm</groupId>
-        <artifactId>jm-backend</artifactId>
-        <version>1.0.0-SNAPSHOT</version>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>3.2.2</version>
+        <relativePath/>
     </parent>
 
+    <groupId>com.devision.jm</groupId>
     <artifactId>auth-service</artifactId>
+    <version>1.0.0-SNAPSHOT</version>
     <packaging>pom</packaging>
     <name>Auth Service - Parent</name>
     <description>Authentication and Authorization microservice for DEVision Job Manager</description>
@@ -23,13 +27,25 @@
     </modules>
 
     <properties>
+        <java.version>21</java.version>
+        <spring-cloud.version>2023.0.0</spring-cloud.version>
+        <mapstruct.version>1.5.5.Final</mapstruct.version>
+        <lombok.version>1.18.30</lombok.version>
+        <jjwt.version>0.12.3</jjwt.version>
         <nimbus-jose-jwt.version>9.37.3</nimbus-jose-jwt.version>
         <springdoc.version>2.3.0</springdoc.version>
     </properties>
 
-    <!-- Common dependencies for all modules -->
+    <!-- Spring Cloud dependency management -->
     <dependencyManagement>
         <dependencies>
+            <dependency>
+                <groupId>org.springframework.cloud</groupId>
+                <artifactId>spring-cloud-dependencies</artifactId>
+                <version>${spring-cloud.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
             <!-- Internal modules -->
             <dependency>
                 <groupId>com.devision.jm</groupId>
