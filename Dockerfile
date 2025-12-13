@@ -1,4 +1,4 @@
-# Standalone Dockerfile for Render Deployment
+# Multi-module Dockerfile for Render Deployment
 FROM eclipse-temurin:21-jdk AS builder
 
 WORKDIR /app
@@ -6,17 +6,25 @@ WORKDIR /app
 # Install Maven
 RUN apt-get update && apt-get install -y maven && rm -rf /var/lib/apt/lists/*
 
-# Copy standalone pom.xml
-COPY pom-standalone.xml ./pom.xml
+# Copy all pom.xml files first (for dependency caching)
+COPY pom.xml ./pom.xml
+COPY auth-api/pom.xml ./auth-api/pom.xml
+COPY auth-core/pom.xml ./auth-core/pom.xml
+COPY auth-app/pom.xml ./auth-app/pom.xml
+
+# Create source directories
+RUN mkdir -p auth-api/src auth-core/src auth-app/src
 
 # Download dependencies (cached layer)
 RUN mvn dependency:go-offline -B || true
 
-# Copy source code
-COPY src ./src
+# Copy source code for all modules
+COPY auth-api/src ./auth-api/src
+COPY auth-core/src ./auth-core/src
+COPY auth-app/src ./auth-app/src
 
-# Build the application
-RUN mvn clean package -DskipTests -B
+# Build all modules (auth-app depends on auth-api and auth-core)
+RUN mvn clean package -DskipTests -B -pl auth-app -am
 
 # Runtime image
 FROM eclipse-temurin:21-jre
@@ -29,8 +37,8 @@ RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
 # Create non-root user for security
 RUN groupadd -r appgroup && useradd -r -g appgroup appuser
 
-# Copy the built jar
-COPY --from=builder /app/target/*.jar app.jar
+# Copy the built jar from auth-app module
+COPY --from=builder /app/auth-app/target/*.jar app.jar
 
 # Set ownership
 RUN chown -R appuser:appgroup /app
