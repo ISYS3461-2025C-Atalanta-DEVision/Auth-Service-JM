@@ -52,25 +52,16 @@ public interface UserRepository extends MongoRepository<User, String> {
     List<User> findByRole(Role role);
 
     /**
-     * Find users by country (for sharding support - 1.3.3)
-     */
-    List<User> findByCountry(String country);
-
-    /**
      * Find users by status
      */
     List<User> findByStatus(AccountStatus status);
 
-    // ==================== Admin Operations (6.1.2, 6.2.1) ====================
-
     /**
-     * Search users by email or company name (Admin feature 6.2.1)
+     * Search users by email (Admin feature)
+     * Note: Company name search moved to Profile Service
      */
-    @Query("{ $or: [ " +
-            "{ 'email': { $regex: ?0, $options: 'i' } }, " +
-            "{ 'company_name': { $regex: ?0, $options: 'i' } } " +
-            "] }")
-    List<User> searchByEmailOrCompanyName(String searchTerm);
+    @Query("{ 'email': { $regex: ?0, $options: 'i' } }")
+    List<User> searchByEmail(String searchTerm);
 
     // ==================== Security Operations ====================
 
