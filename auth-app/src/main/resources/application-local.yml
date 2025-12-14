@@ -11,21 +11,21 @@ spring:
       - org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration
       - org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration
 
-  # MongoDB Configuration
+  # MongoDB and Redis Configuration
   data:
     mongodb:
-      uri: mongodb://localhost:27017/auth_db
+      uri: mongodb+srv://db_user:strongpassword@cluster0.hsoi5dv.mongodb.net/auth_db?retryWrites=true&w=majority
       database: auth_db
+    redis:
+      host: localhost
+      port: 6379
+      password: ""
+      ssl:
+        enabled: false
 
-  # Redis Configuration
-  redis:
-    host: localhost
-    port: 6379
-    password: ""
-
-  # Kafka Configuration (A.3.2)
+  # Kafka Configuration (A.3.2) - Use external listener port 9094
   kafka:
-    bootstrap-servers: localhost:9092
+    bootstrap-servers: localhost:9094
 
   # Mail Configuration (disable for local)
   mail:
@@ -46,10 +46,17 @@ spring:
               - openid
             redirect-uri: "http://localhost:8081/login/oauth2/code/google"
 
-# Disable Eureka for local
+# Eureka Configuration for local development
 eureka:
   client:
-    enabled: false
+    enabled: true
+    service-url:
+      defaultZone: http://eureka:eureka-secret-2024@localhost:8761/eureka/
+    register-with-eureka: true
+    fetch-registry: true
+  instance:
+    prefer-ip-address: true
+    instance-id: ${spring.application.name}:${server.port}
 
 # Internal API Key
 internal:
@@ -57,9 +64,9 @@ internal:
   api-key-validation:
     enabled: false
 
-# JWE Configuration
+# JWE Configuration (must match API Gateway jwt.secret)
 jwe:
-  secret: local-dev-secret-key-must-be-at-least-32-characters-long
+  secret: devision-jm-auth-service-secret-key-2024-must-be-at-least-256-bits-long-for-hs256
   access-token-expiration: 900000
   refresh-token-expiration: 604800000
   issuer: devision-jm-auth-service
@@ -67,7 +74,7 @@ jwe:
 # Application Configuration
 app:
   name: JobMatch
-  frontend-url: http://localhost:3000
+  frontend-url: http://localhost:5173
   from-email: noreply@jobmatch.local
 
 # Logging
