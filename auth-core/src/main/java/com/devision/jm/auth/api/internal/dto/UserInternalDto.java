@@ -14,7 +14,11 @@ import java.time.LocalDateTime;
  * User Internal DTO
  *
  * Internal representation of user data for service layer operations.
- * Contains all user fields including sensitive ones (for internal processing only).
+ * Contains authentication fields only (for internal processing).
+ *
+ * Microservice Architecture (A.3.1):
+ * - Auth Service owns: email, password, tokens, security fields
+ * - Profile Service owns: company info, contact info (via Kafka)
  *
  * Implements A.2.6: Internal DTOs are only accessible by classes within the module.
  */
@@ -32,23 +36,12 @@ public class UserInternalDto {
     private AuthProvider authProvider;
     private String providerId;
 
-    // Contact info
-    private String phoneNumber;
-    private String streetAddress;
-    private String city;
-    private String country;
-
-    // Company info
-    private String companyName;
-    private String avatarUrl;
-    private String subscriptionType;
-
-    // Security fields
+    // Security fields (2.2.2)
     private Integer failedLoginAttempts;
     private LocalDateTime lastFailedLogin;
     private LocalDateTime lockedUntil;
 
-    // Tokens
+    // Activation tokens (1.1.3)
     private String activationToken;
     private LocalDateTime activationTokenExpiry;
 

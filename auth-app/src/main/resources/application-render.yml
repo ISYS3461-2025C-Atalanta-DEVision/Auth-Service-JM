@@ -1,0 +1,20 @@
+# Auth Service - Render Deployment Configuration
+# Activate with: --spring.profiles.active=render
+
+spring:
+  # Remove Kafka exclusion for Render
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration
+      - org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration
+
+  # Kafka Configuration (A.3.2) - Internal Render network
+  kafka:
+    bootstrap-servers: kafka:9092
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+
+logging:
+  level:
+    org.springframework.kafka: INFO

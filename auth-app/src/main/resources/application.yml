@@ -5,12 +5,18 @@ spring:
   application:
     name: auth-service
 
-  # Disable JPA/H2 and Kafka (using MongoDB, Kafka disabled for now)
+  # Disable JPA/H2 (using MongoDB)
   autoconfigure:
     exclude:
       - org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration
       - org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration
-      - org.springframework.boot.autoconfigure.kafka.KafkaAutoConfiguration
+
+  # Kafka Configuration (A.3.2 - Microservice Communication)
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:kafka:9092}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
 
   # MongoDB Configuration
   data:

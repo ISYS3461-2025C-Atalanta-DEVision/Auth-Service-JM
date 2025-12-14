@@ -5,7 +5,6 @@ import com.devision.jm.auth.model.enums.AuthProvider;
 import com.devision.jm.auth.model.enums.Role;
 import lombok.*;
 import lombok.experimental.SuperBuilder;
-import org.springframework.data.mongodb.core.index.CompoundIndex;
 import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 import org.springframework.data.mongodb.core.mapping.Field;
@@ -13,17 +12,21 @@ import org.springframework.data.mongodb.core.mapping.Field;
 import java.time.LocalDateTime;
 
 /**
- * User Document (MongoDB)
+ * User Document (MongoDB) - Authentication Only
  *
- * Represents both Company and Admin users in the authentication system.
+ * This entity contains ONLY authentication-related fields.
+ * Profile data (company name, country, phone, etc.) is managed by Profile Service.
+ *
+ * Microservice Architecture (A.3.1, A.3.3):
+ * - Auth Service owns: email, password, tokens, security fields
+ * - Profile Service owns: company info, contact info, subscription
  *
  * Implements requirements:
- * - 1.1.1: Registration with Email, Password, Country (mandatory), Phone, Street, City (optional)
  * - 1.1.2: Unique email constraint
  * - 1.3.1, 1.3.2: SSO support via authProvider field
+ * - 2.2.2: Brute-force protection fields
  */
 @Document(collection = "users")
-@CompoundIndex(name = "idx_country_status", def = "{'country': 1, 'status': 1}")
 @Getter
 @Setter
 @NoArgsConstructor
@@ -53,38 +56,11 @@ public class User extends BaseEntity {
     @Field("provider_id")
     private String providerId;  // External provider user ID for SSO
 
-    // ==================== Contact Information ====================
-
-    @Field("phone_number")
-    private String phoneNumber;  // Optional (1.1.1)
-
-    @Field("street_address")
-    private String streetAddress;  // Optional (1.1.1)
-
-    @Field("city")
-    private String city;  // Optional (1.1.1)
-
-    @Indexed
-    @Field("country")
-    private String country;  // Mandatory (1.1.1, 1.24 - dropdown selection)
-
-    // ==================== Company Information ====================
-
-    @Field("company_name")
-    private String companyName;
-
-    @Field("avatar_url")
-    private String avatarUrl;  // Default: NULL
-
-    @Builder.Default
-    @Field("subscription_type")
-    private String subscriptionType = "FREE";  // Default: "FREE" on account creation
-
-    // ==================== Account Security ====================
+    // ==================== Account Security (2.2.2) ====================
 
     @Builder.Default
     @Field("failed_login_attempts")
-    private Integer failedLoginAttempts = 0;  // For brute-force protection (2.2.2)
+    private Integer failedLoginAttempts = 0;  // For brute-force protection
 
     @Field("last_failed_login")
     private LocalDateTime lastFailedLogin;
@@ -92,11 +68,11 @@ public class User extends BaseEntity {
     @Field("locked_until")
     private LocalDateTime lockedUntil;  // Account lock expiration
 
-    // ==================== Activation ====================
+    // ==================== Activation (1.1.3) ====================
 
     @Indexed(sparse = true)
     @Field("activation_token")
-    private String activationToken;  // For email activation (1.1.3)
+    private String activationToken;  // For email activation
 
     @Field("activation_token_expiry")
     private LocalDateTime activationTokenExpiry;

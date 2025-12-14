@@ -1,0 +1,77 @@
+# Auth Service - Local Development Configuration
+# Activate with: --spring.profiles.active=local
+
+server:
+  port: 8081
+
+spring:
+  # Remove Kafka exclusion for local development
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration
+      - org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration
+
+  # MongoDB Configuration
+  data:
+    mongodb:
+      uri: mongodb://localhost:27017/auth_db
+      database: auth_db
+
+  # Redis Configuration
+  redis:
+    host: localhost
+    port: 6379
+    password: ""
+
+  # Kafka Configuration (A.3.2)
+  kafka:
+    bootstrap-servers: localhost:9092
+
+  # Mail Configuration (disable for local)
+  mail:
+    host: localhost
+    port: 1025
+
+  # OAuth2 Configuration
+  security:
+    oauth2:
+      client:
+        registration:
+          google:
+            client-id: ${GOOGLE_CLIENT_ID:your-client-id}
+            client-secret: ${GOOGLE_CLIENT_SECRET:your-client-secret}
+            scope:
+              - email
+              - profile
+              - openid
+            redirect-uri: "http://localhost:8081/login/oauth2/code/google"
+
+# Disable Eureka for local
+eureka:
+  client:
+    enabled: false
+
+# Internal API Key
+internal:
+  api-key: local-dev-api-key
+  api-key-validation:
+    enabled: false
+
+# JWE Configuration
+jwe:
+  secret: local-dev-secret-key-must-be-at-least-32-characters-long
+  access-token-expiration: 900000
+  refresh-token-expiration: 604800000
+  issuer: devision-jm-auth-service
+
+# Application Configuration
+app:
+  name: JobMatch
+  frontend-url: http://localhost:3000
+  from-email: noreply@jobmatch.local
+
+# Logging
+logging:
+  level:
+    com.devision.jm.auth: DEBUG
+    org.springframework.kafka: DEBUG

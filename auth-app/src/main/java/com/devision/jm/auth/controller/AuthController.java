@@ -19,6 +19,10 @@ import java.util.Set;
  * REST controller for authentication endpoints.
  * Implements the Presentation Layer (A.1.1, A.2.2).
  *
+ * Microservice Architecture (A.3.1):
+ * - Auth Service handles: registration, login, logout, tokens
+ * - Profile Service handles: user profile (via Kafka)
+ *
  * Note: Controller communicates with Business Logic Layer (AuthenticationApi)
  * and does NOT directly access Repository Layer (A.2.2).
  */
@@ -34,13 +38,13 @@ public class AuthController {
     // ==================== REGISTRATION ====================
     // POST /api/auth/register - Register a new company account
     @PostMapping("/register")
-    public ResponseEntity<CompanyProfileResponse> register(
+    public ResponseEntity<RegistrationResponse> register(
             @Valid @RequestBody CompanyRegistrationRequest request) {
         // @Valid - triggers Bean Validation (checks @Email, @Size, @Pattern on DTO)
         // @RequestBody - deserializes JSON request body to CompanyRegistrationRequest object
         log.info("Registration request received for email: {}", request.getEmail());
-        CompanyProfileResponse response = authenticationService.registerCompany(request);
-        // Return HTTP 201 Created with the company profile
+        RegistrationResponse response = authenticationService.registerCompany(request);
+        // Return HTTP 201 Created with the registration response
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
@@ -145,17 +149,7 @@ public class AuthController {
         return ResponseEntity.ok(response);
     }
 
-    // ==================== USER PROFILE ====================
-    // GET /api/auth/profile - Get authenticated user's profile
-    @GetMapping("/profile")
-    public ResponseEntity<CompanyProfileResponse> getProfile(
-            // userId is set by JweAuthenticationFilter after validating the token
-            @RequestAttribute("userId") String userId) {
-        log.info("Profile request for user: {}", userId);
-        // Fetch user profile from database
-        CompanyProfileResponse response = authenticationService.getUserProfile(userId);
-        return ResponseEntity.ok(response);
-    }
+    // NOTE: /api/auth/profile endpoint removed - profile is now handled by Profile Service
 
     // ==================== HELPER METHODS ====================
     /**

@@ -234,6 +234,16 @@ public class EmailServiceImpl implements EmailService {
 
     // ==================== Email Templates ====================
 
+    /**
+     * Get display name from user email.
+     * Microservice Note: Company name is now in Profile Service.
+     * Auth Service only has email, so we use email prefix as display name.
+     */
+    private String getDisplayName(User user) {
+        String email = user.getEmail();
+        return email.contains("@") ? email.split("@")[0] : email;
+    }
+
     private String buildActivationEmailHtml(User user, String activationLink) {
         return """
             <!DOCTYPE html>
@@ -272,7 +282,7 @@ public class EmailServiceImpl implements EmailService {
                 </div>
             </body>
             </html>
-            """.formatted(appName, user.getCompanyName(), appName, activationLink, activationLink, appName);
+            """.formatted(appName, getDisplayName(user), appName, activationLink, activationLink, appName);
     }
 
     private String buildPasswordResetEmailHtml(User user, String resetLink) {
@@ -314,7 +324,7 @@ public class EmailServiceImpl implements EmailService {
                 </div>
             </body>
             </html>
-            """.formatted(appName, user.getCompanyName(), resetLink, resetLink, appName);
+            """.formatted(appName, getDisplayName(user), resetLink, resetLink, appName);
     }
 
     private String buildPasswordChangeConfirmationHtml(User user) {
@@ -350,7 +360,7 @@ public class EmailServiceImpl implements EmailService {
                 </div>
             </body>
             </html>
-            """.formatted(appName, user.getCompanyName(), appName);
+            """.formatted(appName, getDisplayName(user), appName);
     }
 
     private String buildWelcomeEmailHtml(User user) {
@@ -394,7 +404,7 @@ public class EmailServiceImpl implements EmailService {
                 </div>
             </body>
             </html>
-            """.formatted(appName, user.getCompanyName(), appName, frontendUrl, appName);
+            """.formatted(appName, getDisplayName(user), appName, frontendUrl, appName);
     }
 
     private String buildSubscriptionWarningHtml(User user, int daysRemaining) {
@@ -439,7 +449,7 @@ public class EmailServiceImpl implements EmailService {
                 </div>
             </body>
             </html>
-            """.formatted(user.getCompanyName(), appName, daysRemaining, frontendUrl, appName);
+            """.formatted(getDisplayName(user), appName, daysRemaining, frontendUrl, appName);
     }
 
     private String buildSubscriptionExpiredHtml(User user) {
@@ -478,6 +488,6 @@ public class EmailServiceImpl implements EmailService {
                 </div>
             </body>
             </html>
-            """.formatted(user.getCompanyName(), appName, frontendUrl, appName);
+            """.formatted(getDisplayName(user), appName, frontendUrl, appName);
     }
 }
