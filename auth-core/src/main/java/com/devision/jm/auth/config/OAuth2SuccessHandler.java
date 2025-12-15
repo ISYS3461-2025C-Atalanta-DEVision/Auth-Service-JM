@@ -1,7 +1,7 @@
 package com.devision.jm.auth.config;
 
 import com.devision.jm.auth.api.internal.dto.TokenInternalDto;
-import com.devision.jm.auth.service.impl.OAuth2AuthenticationService;
+import com.devision.jm.auth.service.OAuth2AuthenticationService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;

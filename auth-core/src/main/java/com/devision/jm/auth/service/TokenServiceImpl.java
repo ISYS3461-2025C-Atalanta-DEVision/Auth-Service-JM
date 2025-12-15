@@ -1,4 +1,4 @@
-package com.devision.jm.auth.service.impl;
+package com.devision.jm.auth.service;
 
 import com.devision.jm.auth.api.internal.dto.TokenInternalDto;
 import com.devision.jm.auth.api.internal.interfaces.TokenService;

@@ -1,4 +1,4 @@
-package com.devision.jm.auth.service.impl;
+package com.devision.jm.auth.service;
 
 import com.devision.jm.auth.api.external.dto.*;
 import com.devision.jm.auth.api.external.interfaces.AuthenticationApi;

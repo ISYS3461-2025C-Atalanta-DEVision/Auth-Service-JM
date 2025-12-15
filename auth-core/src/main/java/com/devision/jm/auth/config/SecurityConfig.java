@@ -2,8 +2,8 @@ package com.devision.jm.auth.config;
 
 import com.devision.jm.auth.filter.InternalApiKeyValidationFilter;
 import com.devision.jm.auth.filter.JweAuthenticationFilter;
-import com.devision.jm.auth.service.impl.CustomOidcUserService;
-import com.devision.jm.auth.service.impl.OAuth2AuthenticationService;
+import com.devision.jm.auth.service.CustomOidcUserService;
+import com.devision.jm.auth.service.OAuth2AuthenticationService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;

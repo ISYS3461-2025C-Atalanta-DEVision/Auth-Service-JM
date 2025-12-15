@@ -1,4 +1,4 @@
-package com.devision.jm.auth.service.impl;
+package com.devision.jm.auth.service;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
