@@ -11,17 +11,17 @@ spring:
       - org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration
       - org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration
 
-  # MongoDB and Redis Configuration
+  # MongoDB Atlas Configuration
   data:
     mongodb:
-      uri: mongodb+srv://db_user:strongpassword@cluster0.hsoi5dv.mongodb.net/auth_db?retryWrites=true&w=majority
-      database: auth_db
+      uri: mongodb+srv://db_user:strongpassword@cluster0.hsoi5dv.mongodb.net/authdb?retryWrites=true&w=majority
+      database: authdb
     redis:
-      host: localhost
+      host: alert-gull-12985.upstash.io
       port: 6379
-      password: ""
+      password: ATK5AAIncDJhNWM2ZDcyMjU3NTI0MDA3YTZjNDRiNTU1NjAyYzA3YXAyMTI5ODU
       ssl:
-        enabled: false
+        enabled: true
 
   # Kafka Configuration (A.3.2) - Use external listener port 9094
   kafka:
