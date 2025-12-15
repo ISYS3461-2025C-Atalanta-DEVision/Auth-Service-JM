@@ -1,8 +1,10 @@
 package com.devision.jm.auth.config;
 
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.common.serialization.StringSerializer;
-import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.kafka.core.DefaultKafkaProducerFactory;
@@ -16,24 +18,33 @@ import java.util.Map;
  * Kafka Configuration
  *
  * Configures Kafka producer for publishing events to other microservices.
+ * Discovers Kafka address from Eureka via KafkaDiscoveryService.
  *
  * Implements Microservice Architecture (A.3.2):
  * - Communication among microservices via Message Broker (Kafka)
  *
- * Environment Variables:
- * - KAFKA_BOOTSTRAP_SERVERS: Kafka broker addresses (default: localhost:9092)
+ * Discovery Flow:
+ * 1. KafkaDiscoveryService queries Eureka for kafka-registrar
+ * 2. Reads kafkaBroker from metadata
+ * 3. Falls back to application.yml if discovery fails
  */
+@Slf4j
 @Configuration
+@RequiredArgsConstructor
+@ConditionalOnProperty(name = "kafka.enabled", havingValue = "true", matchIfMissing = true)
 public class KafkaConfig {
 
-    @Value("${spring.kafka.bootstrap-servers:localhost:9092}")
-    private String bootstrapServers;
+    private final KafkaDiscoveryService kafkaDiscoveryService;
 
     @Bean
     public ProducerFactory<String, String> producerFactory() {
         Map<String, Object> configProps = new HashMap<>();
 
-        // Kafka broker addresses
+        // Get Kafka address from Eureka discovery
+        String bootstrapServers = kafkaDiscoveryService.getKafkaBootstrapServers();
+        log.info("Configuring Kafka Producer with bootstrap servers: {}", bootstrapServers);
+
+        // Kafka broker addresses (discovered from Eureka)
         configProps.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
 
         // Key and value serializers
