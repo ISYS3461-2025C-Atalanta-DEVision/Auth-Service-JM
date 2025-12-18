@@ -60,6 +60,7 @@ import java.util.*;
 @Slf4j
 @Service
 @RequiredArgsConstructor
+@Transactional(rollbackFor = Exception.class)
 public class OAuth2AuthenticationService extends DefaultOAuth2UserService {
 
     private final UserRepository userRepository;
@@ -70,7 +71,6 @@ public class OAuth2AuthenticationService extends DefaultOAuth2UserService {
      * Load OAuth2 User - Main Entry Point
      */
     @Override
-    @Transactional
     public OAuth2User loadUser(OAuth2UserRequest userRequest) throws OAuth2AuthenticationException {
         OAuth2User oauth2User = super.loadUser(userRequest);
         String registrationId = userRequest.getClientRegistration().getRegistrationId();

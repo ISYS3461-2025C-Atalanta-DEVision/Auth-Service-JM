@@ -45,6 +45,7 @@ import java.util.UUID;
 @Slf4j
 @Service
 @RequiredArgsConstructor
+@Transactional(rollbackFor = Exception.class)
 public class AuthenticationServiceImpl implements AuthenticationApi {
 
     // ==================== BRUTE-FORCE PROTECTION CONSTANTS (2.2.2) ====================
@@ -77,7 +78,6 @@ public class AuthenticationServiceImpl implements AuthenticationApi {
      * @return Registration response with userId
      */
     @Override
-    @Transactional
     public RegistrationResponse registerCompany(CompanyRegistrationRequest request) {
         log.info("Registering new company with email: {}", request.getEmail());
 
@@ -159,7 +159,6 @@ public class AuthenticationServiceImpl implements AuthenticationApi {
     // ==================== COMPANY LOGIN (2.1.1 - 2.3.3) ====================
 
     @Override
-    @Transactional
     public LoginResponse login(LoginRequest request, String ipAddress) {
         log.info("Login attempt for email: {}", request.getEmail());
 
@@ -233,7 +232,6 @@ public class AuthenticationServiceImpl implements AuthenticationApi {
     // ==================== TOKEN REFRESH (2.3.3) ====================
 
     @Override
-    @Transactional
     public LoginResponse refreshToken(RefreshTokenRequest request) {
         log.debug("Token refresh attempt");
 
@@ -252,7 +250,6 @@ public class AuthenticationServiceImpl implements AuthenticationApi {
     // ==================== LOGOUT (2.2.3) ====================
 
     @Override
-    @Transactional
     public void logout(String accessToken, String refreshToken) {
         log.info("Logout request");
 
@@ -268,7 +265,6 @@ public class AuthenticationServiceImpl implements AuthenticationApi {
     // ==================== ACCOUNT ACTIVATION (1.1.3) ====================
 
     @Override
-    @Transactional
     public void activateAccount(String token) {
         log.info("Account activation attempt");
 
