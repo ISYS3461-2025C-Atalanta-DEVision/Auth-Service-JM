@@ -135,12 +135,12 @@ public class SecurityConfig {
                                 "/login/oauth2/**",   // Allows /login/oauth2/code/{provider}
 
                                 // Actuator endpoints (monitoring, health checks)
-                                "/actuator/**"
-                        ).permitAll()  // All above endpoints are PUBLIC (no JWE required)
+                                "/actuator/**",
 
-                        // ADMIN ENDPOINTS - Require ADMIN role
-                        // User must have JWE token with role="ROLE_ADMIN"
-                        .requestMatchers("/api/admin/**").hasRole("ADMIN")
+                                // Admin endpoints for JA team (external API key authentication)
+                                // API Gateway validates X-External-Api-Key before forwarding
+                                "/api/admin/**"
+                        ).permitAll()  // All above endpoints are PUBLIC (no JWE required)
 
                         // ALL OTHER ENDPOINTS - Require authentication
                         // User must have valid JWE token in Authorization header
