@@ -17,6 +17,11 @@ spring:
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.apache.kafka.common.serialization.StringSerializer
+    consumer:
+      group-id: auth-service-group
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
 
   # MongoDB Configuration
   data:
@@ -102,6 +107,10 @@ app:
   name: ${APP_NAME}
   frontend-url: ${FRONTEND_URL}
   from-email: ${FROM_EMAIL}
+
+# Kafka Feature Toggle
+kafka:
+  enabled: ${KAFKA_ENABLED:false}
 
 # Actuator Configuration
 management:
