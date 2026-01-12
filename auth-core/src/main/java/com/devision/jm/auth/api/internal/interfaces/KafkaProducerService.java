@@ -1,6 +1,7 @@
 package com.devision.jm.auth.api.internal.interfaces;
 
 import com.devision.jm.auth.api.internal.dto.UserCreatedEvent;
+import com.devision.jm.auth.api.internal.dto.UserDeletedEvent;
 
 /**
  * Kafka Producer Service (Internal API)
@@ -22,4 +23,14 @@ public interface KafkaProducerService {
      * @param event User created event containing profile data
      */
     void publishUserCreatedEvent(UserCreatedEvent event);
+
+    /**
+     * Publish user deleted event to Kafka
+     *
+     * Topic: user-deleted
+     * Consumers: Profile Service, File Service, etc.
+     *
+     * @param event User deleted event for cleanup
+     */
+    void publishUserDeletedEvent(UserDeletedEvent event);
 }
